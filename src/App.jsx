@@ -105,10 +105,10 @@ const DEFAULT_CONFIG = {
   duree: "2h",
   contactEmail: "",
   contactTel: "",
-  emailjsServiceId: "",
-  emailjsPublicKey: "",
-  emailjsTemplateParent: "",
-  emailjsTemplateAdmin: "",
+  emailjsServiceId: "service_wx1z7m1",
+  emailjsPublicKey: "feN2CqnAJEyty4ZgA",
+  emailjsTemplateParent: "template_z09d89r",
+  emailjsTemplateAdmin: "template_z09d89r",
   conditions:
     "Annulation possible jusqu'à 48h avant l'atelier. En cas de pluie, l'atelier est maintenu en intérieur ou reporté selon les cas.",
   motAccueil:
