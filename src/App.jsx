@@ -105,6 +105,10 @@ const DEFAULT_CONFIG = {
   duree: "2h",
   contactEmail: "",
   contactTel: "",
+  emailjsServiceId: "",
+  emailjsPublicKey: "",
+  emailjsTemplateParent: "",
+  emailjsTemplateAdmin: "",
   conditions:
     "Annulation possible jusqu'à 48h avant l'atelier. En cas de pluie, l'atelier est maintenu en intérieur ou reporté selon les cas.",
   motAccueil:
@@ -209,6 +213,15 @@ function buildICS(session, ville, config) {
 
 export default function LesMondesCaches() {
   const [loading, setLoading] = useState(true);
+  const [paiementConfirme, setPaiementConfirme] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("merci") === "1") {
+      setPaiementConfirme(true);
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
   const [config, setConfig] = useState(DEFAULT_CONFIG);
   const [villes, setVilles] = useState([]);
   const [reservations, setReservations] = useState([]);
@@ -222,7 +235,7 @@ export default function LesMondesCaches() {
   const [selectedVille, setSelectedVille] = useState(null);
   const [selectedSession, setSelectedSession] = useState(null);
   const [step, setStep] = useState("choix");
-  const [form, setForm] = useState({ nom: "", email: "", tel: "", nbEnfants: 1 });
+  const [form, setForm] = useState({ nom: "", email: "", tel: "", nbEnfants: 1, piege: "" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [openFaq, setOpenFaq] = useState(null);
@@ -255,6 +268,11 @@ export default function LesMondesCaches() {
   const seDeconnecter = async () => {
     await supabase.auth.signOut();
     setView("parent");
+  };
+
+  const changerMotDePasse = async (nouveauMdp) => {
+    const { error: err } = await supabase.auth.updateUser({ password: nouveauMdp });
+    return err;
   };
 
   const loadReservations = useCallback(async () => {
@@ -317,6 +335,35 @@ export default function LesMondesCaches() {
       setError(`Échec de l'enregistrement (villes) : ${e?.message || e}`);
     }
   };
+
+  const envoyerEmails = async (r) => {
+    if (!config.emailjsServiceId || !config.emailjsPublicKey || !window.emailjs) return;
+    const params = {
+      to_email: r.email,
+      parent_nom: r.nom,
+      atelier_titre: config.titre,
+      ville: r.villeNom,
+      date: r.date,
+      heure: r.heure,
+      nb_enfants: r.nbEnfants,
+      statut: r.enAttente ? "Liste d'attente" : "Confirmée",
+    };
+    try {
+      if (config.emailjsTemplateParent) {
+        await window.emailjs.send(config.emailjsServiceId, config.emailjsTemplateParent, params, config.emailjsPublicKey);
+      }
+    } catch (e) {
+      console.error("Erreur envoi email parent:", e);
+    }
+    try {
+      if (config.emailjsTemplateAdmin && config.contactEmail) {
+        await window.emailjs.send(config.emailjsServiceId, config.emailjsTemplateAdmin, { ...params, to_email: config.contactEmail }, config.emailjsPublicKey);
+      }
+    } catch (e) {
+      console.error("Erreur envoi email admin:", e);
+    }
+  };
+
   const insertReservation = async (r) => {
     try {
       const { error: err } = await supabase.from("reservations").insert({
@@ -332,6 +379,7 @@ export default function LesMondesCaches() {
         en_attente: r.enAttente,
       });
       if (err) throw err;
+      await envoyerEmails(r);
     } catch (e) {
       console.error("Erreur Supabase reservations:", e);
       setError(`Échec de l'enregistrement (réservation) : ${e?.message || e}`);
@@ -376,6 +424,19 @@ export default function LesMondesCaches() {
       setError("Merci de renseigner au moins ton nom et ton email.");
       return;
     }
+    if (form.piege) {
+      setSaving(true);
+      setTimeout(() => {
+        setSaving(false);
+        setStep("confirmation");
+      }, 600);
+      return;
+    }
+    const dernier = Number(localStorage.getItem("lmc_derniere_resa") || 0);
+    if (Date.now() - dernier < 60000) {
+      setError("Merci de patienter un instant avant de réserver à nouveau.");
+      return;
+    }
     setSaving(true);
     setError("");
     const enAttente = selectedSession.placesRestantes <= 0;
@@ -404,6 +465,7 @@ export default function LesMondesCaches() {
     };
     await persistVilles(nextVilles);
     await insertReservation(reservation);
+    localStorage.setItem("lmc_derniere_resa", String(Date.now()));
     setSaving(false);
     setStep("confirmation");
   };
@@ -411,7 +473,7 @@ export default function LesMondesCaches() {
   const resetParcours = () => {
     setSelectedVille(null);
     setSelectedSession(null);
-    setForm({ nom: "", email: "", tel: "", nbEnfants: 1 });
+    setForm({ nom: "", email: "", tel: "", nbEnfants: 1, piege: "" });
     setStep("choix");
   };
 
@@ -524,10 +586,12 @@ export default function LesMondesCaches() {
           <AdminPanel
             config={config} villes={villes} reservations={reservations}
             onSaveConfig={persistConfig} onAddVille={addVille} onRemoveVille={removeVille}
-            onAddSession={addSession} onRemoveSession={removeSession} onClose={seDeconnecter}
+            onAddSession={addSession} onRemoveSession={removeSession} onClose={seDeconnecter} onChangePassword={changerMotDePasse}
           />
         ) : view === "legal" ? (
           <LegalPage texte={config.mentionsLegales} onBack={() => setView("parent")} />
+        ) : paiementConfirme ? (
+          <MerciPaiement onRetour={() => setPaiementConfirme(false)} />
         ) : (
           <ParentFlow
             config={config} villes={villes} step={step} selectedVille={selectedVille} selectedSession={selectedSession}
@@ -567,6 +631,23 @@ function LegalPage({ texte, onBack }) {
           {texte || "Cette page n'a pas encore été renseignée."}
         </p>
       </div>
+    </div>
+  );
+}
+
+function MerciPaiement({ onRetour }) {
+  return (
+    <div className="text-center py-10">
+      <div className="w-16 h-16 rounded-full text-[#F7ECD8] flex items-center justify-center mx-auto mb-6" style={{ background: "#2B4433" }}>
+        <Check size={28} />
+      </div>
+      <h2 className="lmc-display text-4xl mb-2" style={{ color: "#2B4433" }}>Merci !</h2>
+      <p className="text-[#5C4A3A] mb-6 max-w-md mx-auto font-medium">
+        Ton paiement a bien été pris en compte. On a hâte de vous accueillir !
+      </p>
+      <button onClick={onRetour} className="text-sm text-[#5C4A3A] underline underline-offset-4 font-medium">
+        Retour à l'accueil
+      </button>
     </div>
   );
 }
@@ -726,6 +807,16 @@ function ParentFlow({
               <input type="number" min={1} max={selectedSession.placesRestantes} value={form.nbEnfants} onChange={(e) => setForm({ ...form, nbEnfants: e.target.value })} className="lmc-input" />
             </Field>
           )}
+          <input
+            type="text"
+            name="site_web"
+            value={form.piege}
+            onChange={(e) => setForm({ ...form, piege: e.target.value })}
+            tabIndex={-1}
+            autoComplete="off"
+            aria-hidden="true"
+            style={{ position: "absolute", left: "-9999px", width: 1, height: 1, opacity: 0 }}
+          />
         </div>
 
         {!complet && config.noticeRetractation && (
@@ -896,7 +987,7 @@ function exportCSV(reservations) {
   URL.revokeObjectURL(url);
 }
 
-function AdminPanel({ config, villes, reservations, onSaveConfig, onAddVille, onRemoveVille, onAddSession, onRemoveSession, onClose }) {
+function AdminPanel({ config, villes, reservations, onSaveConfig, onAddVille, onRemoveVille, onAddSession, onRemoveSession, onClose, onChangePassword }) {
   const [titre, setTitre] = useState(config.titre);
   const [description, setDescription] = useState(config.description);
   const [prix, setPrix] = useState(config.prix);
@@ -908,6 +999,10 @@ function AdminPanel({ config, villes, reservations, onSaveConfig, onAddVille, on
   const [duree, setDuree] = useState(config.duree || "");
   const [contactEmail, setContactEmail] = useState(config.contactEmail || "");
   const [contactTel, setContactTel] = useState(config.contactTel || "");
+  const [emailjsServiceId, setEmailjsServiceId] = useState(config.emailjsServiceId || "");
+  const [emailjsPublicKey, setEmailjsPublicKey] = useState(config.emailjsPublicKey || "");
+  const [emailjsTemplateParent, setEmailjsTemplateParent] = useState(config.emailjsTemplateParent || "");
+  const [emailjsTemplateAdmin, setEmailjsTemplateAdmin] = useState(config.emailjsTemplateAdmin || "");
   const [conditions, setConditions] = useState(config.conditions || "");
   const [motAccueil, setMotAccueil] = useState(config.motAccueil || "");
   const [messageAucunCreneau, setMessageAucunCreneau] = useState(config.messageAucunCreneau || "");
@@ -919,11 +1014,35 @@ function AdminPanel({ config, villes, reservations, onSaveConfig, onAddVille, on
   const [nouvelleFaq, setNouvelleFaq] = useState({ q: "", r: "" });
   const [nouvelleVille, setNouvelleVille] = useState("");
   const [sessionForms, setSessionForms] = useState({});
+  const [nouveauMdp, setNouveauMdp] = useState("");
+  const [mdpEnCours, setMdpEnCours] = useState(false);
+  const [mdpMessage, setMdpMessage] = useState("");
+  const [mdpErreur, setMdpErreur] = useState("");
+
+  const soumettreNouveauMdp = async () => {
+    setMdpMessage("");
+    setMdpErreur("");
+    if (nouveauMdp.trim().length < 6) {
+      setMdpErreur("Le mot de passe doit faire au moins 6 caractères.");
+      return;
+    }
+    setMdpEnCours(true);
+    const err = await onChangePassword(nouveauMdp.trim());
+    setMdpEnCours(false);
+    if (err) {
+      setMdpErreur(`Échec : ${err.message || err}`);
+      return;
+    }
+    setMdpMessage("Mot de passe mis à jour avec succès.");
+    setNouveauMdp("");
+  };
+
 
   const saveAll = (overrides = {}) => {
     onSaveConfig({
       titre, description, prix: Number(prix) || 0, lienPaiement: lienPaiement.trim(), logoImage,
       ageRange, duree, contactEmail, contactTel, conditions, motAccueil, messageAucunCreneau, noticeRetractation, mentionsLegales, temoignages, faq,
+      emailjsServiceId: emailjsServiceId.trim(), emailjsPublicKey: emailjsPublicKey.trim(), emailjsTemplateParent: emailjsTemplateParent.trim(), emailjsTemplateAdmin: emailjsTemplateAdmin.trim(),
       ...overrides,
     });
   };
@@ -1011,6 +1130,58 @@ function AdminPanel({ config, villes, reservations, onSaveConfig, onAddVille, on
         <h2 className="lmc-display text-4xl" style={{ color: "#2B4433" }}>Gérer l'atelier</h2>
         <button onClick={onClose} className="text-[#5C4A3A] hover:text-[#2B4433] flex items-center gap-1 text-sm font-medium"><X size={16} /> Fermer</button>
       </div>
+
+      <section className="rounded-2xl border p-6 mb-6" style={{ background: "#FBF3E3", borderColor: "#DCC79C" }}>
+        <h3 className="font-semibold mb-4 flex items-center gap-2" style={{ color: "#2B4433" }}>
+          <Lock size={16} /> Changer mon mot de passe
+        </h3>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <input
+            type="password"
+            className="lmc-input"
+            placeholder="Nouveau mot de passe (6 caractères minimum)"
+            value={nouveauMdp}
+            onChange={(e) => setNouveauMdp(e.target.value)}
+          />
+          <button
+            onClick={soumettreNouveauMdp}
+            disabled={mdpEnCours}
+            className="shrink-0 text-sm font-semibold px-5 py-2.5 rounded-full transition-colors disabled:opacity-60"
+            style={{ background: "#2B4433", color: "#F7ECD8" }}
+          >
+            {mdpEnCours ? "..." : "Mettre à jour"}
+          </button>
+        </div>
+        {mdpMessage && <p className="text-xs mt-2 font-medium" style={{ color: "#2B4433" }}>{mdpMessage}</p>}
+        {mdpErreur && <p className="text-xs mt-2 font-medium" style={{ color: "#B5744A" }}>{mdpErreur}</p>}
+      </section>
+
+      <section className="rounded-2xl border p-6 mb-6" style={{ background: "#FBF3E3", borderColor: "#DCC79C" }}>
+        <h3 className="font-semibold mb-2 flex items-center gap-2" style={{ color: "#2B4433" }}>
+          <Mail size={16} /> Emails automatiques
+        </h3>
+        <p className="text-xs mb-4" style={{ color: "#8A7A56" }}>
+          Renseigne ici les identifiants de ton compte EmailJS (voir le guide) pour qu'un
+          email de confirmation soit envoyé au parent, et un email de notification à toi,
+          à chaque nouvelle réservation. Tant que ces champs sont vides, aucun email n'est
+          envoyé.
+        </p>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Service ID EmailJS"><input className="lmc-input" value={emailjsServiceId} onChange={(e) => setEmailjsServiceId(e.target.value)} placeholder="service_xxxxx" /></Field>
+            <Field label="Public Key EmailJS"><input className="lmc-input" value={emailjsPublicKey} onChange={(e) => setEmailjsPublicKey(e.target.value)} placeholder="xxxxxxxxxxxxx" /></Field>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Template ID (email au parent)"><input className="lmc-input" value={emailjsTemplateParent} onChange={(e) => setEmailjsTemplateParent(e.target.value)} placeholder="template_xxxxx" /></Field>
+            <Field label="Template ID (email à toi)"><input className="lmc-input" value={emailjsTemplateAdmin} onChange={(e) => setEmailjsTemplateAdmin(e.target.value)} placeholder="template_xxxxx" /></Field>
+          </div>
+          <p className="text-xs" style={{ color: "#8A7A56" }}>
+            L'email de notification pour toi sera envoyé à l'adresse renseignée dans
+            "Email de contact" ci-dessous.
+          </p>
+          <button onClick={() => saveAll()} className="text-sm font-semibold px-5 py-2.5 rounded-full transition-colors" style={{ background: "#2B4433", color: "#F7ECD8" }}>Enregistrer</button>
+        </div>
+      </section>
 
       <section className="rounded-2xl border p-6 mb-6" style={{ background: "#FBF3E3", borderColor: "#DCC79C" }}>
         <h3 className="font-semibold mb-4" style={{ color: "#2B4433" }}>Informations générales</h3>
