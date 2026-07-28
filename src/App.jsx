@@ -350,14 +350,15 @@ export default function LesMondesCaches() {
     };
     try {
       if (config.emailjsTemplateParent) {
-        await window.emailjs.send(config.emailjsServiceId, config.emailjsTemplateParent, params, config.emailjsPublicKey);
+        await window.emailjs.send(config.emailjsServiceId, config.emailjsTemplateParent, params, { publicKey: config.emailjsPublicKey }
       }
     } catch (e) {
       console.error("Erreur envoi email parent:", e);
     }
     try {
       if (config.emailjsTemplateAdmin && config.contactEmail) {
-        await window.emailjs.send(config.emailjsServiceId, config.emailjsTemplateAdmin, { ...params, to_email: config.contactEmail }, config.emailjsPublicKey);
+        await window.emailjs.send(config.emailjsServiceId, config.emailjsTemplateAdmin, { ...params, to_email: config.contactEmail }, { publicKey: config.emailjsPublicKey }
+
       }
     } catch (e) {
       console.error("Erreur envoi email admin:", e);
