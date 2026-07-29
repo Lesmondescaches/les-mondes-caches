@@ -1372,7 +1372,8 @@ function AdminPanel({ config, villes, reservations, onSaveConfig, onAddVille, on
           <p className="text-sm text-[#8A7A56] italic">Aucune réservation pour l'instant.</p>
         ) : (
           <div className="space-y-2">
-            {reservations.map((r) => (
+            {reservations.filter((r) => !r.supprime === voirCorbeille).map((r) => (
+
               <div key={r.id} className="text-sm rounded-lg px-3 py-2 flex flex-wrap gap-x-4 gap-y-1 border" style={{ borderColor: "#DCC79C" }}>
                 <span className="font-semibold" style={{ color: "#2B4433" }}>{r.nom}</span>
                 <span className="font-medium" style={{ color: "#5C4A3A" }}>{r.ville_nom}</span>
@@ -1381,7 +1382,12 @@ function AdminPanel({ config, villes, reservations, onSaveConfig, onAddVille, on
                 <span style={{ color: "#8A7A56" }}>{r.email}</span>
                 {r.tel && <span style={{ color: "#8A7A56" }}>{r.tel}</span>}
                 {r.en_attente && <span className="font-semibold" style={{ color: "#B5744A" }}>Liste d'attente</span>}
-              </div>
+             {voirCorbeille ? (
+  <button onClick={() => onRestaurerReservation(r.id)} className="text-xs underline" style={{ color: "#2B4433" }}>Restaurer</button>
+) : (
+  <button onClick={() => onSupprimerReservation(r.id)} className="text-xs underline" style={{ color: "#B5744A" }}>Supprimer</button>
+)}
+ </div>
             ))}
           </div>
         )}
