@@ -1363,7 +1363,10 @@ function AdminPanel({ config, villes, reservations, onSaveConfig, onAddVille, on
               <Download size={13} /> Exporter en CSV
             </button>
           )}
-        </div>
+        <button onClick={onToggleCorbeille} className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg" style={{ background: "#DCC79C", color: "#2B4433" }}>
+  {voirCorbeille ? "Retour à la liste" : "Voir la corbeille"}
+</button>
+</div>
         <p className="text-xs mb-3" style={{ color: "#8A7A56" }}>
           Cette liste n'est visible que parce que tu es connecté·e — elle est invisible pour
           tout le monde d'autre.
