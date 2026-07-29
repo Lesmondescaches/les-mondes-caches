@@ -485,10 +485,12 @@ const restaurerReservation = async (id) => {
       creeLe: new Date().toISOString(),
     };
     await persistVilles(nextVilles);
-    await insertReservation(reservation);
+    localStorage.setItem("lmc_reservation_pending", JSON.stringify(reservation));
+
     localStorage.setItem("lmc_derniere_resa", String(Date.now()));
-    setSaving(false);
-    setStep("confirmation");
+    window.location.href = config.lienPaiement || window.location.href;
+
+    
   };
 
   const resetParcours = () => {
