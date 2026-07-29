@@ -105,7 +105,7 @@ const DEFAULT_CONFIG = {
   duree: "2h",
   contactEmail: "",
   contactTel: "",
-  emailjsServiceId: "service_wx1z7m1",
+  emailjsServiceId: "service_r1002kb",
   emailjsPublicKey: "feN2CqnAJEyty4ZgA",
   emailjsTemplateParent: "template_z09d89r",
   emailjsTemplateAdmin: "template_z09d89r",
