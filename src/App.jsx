@@ -608,7 +608,11 @@ const restaurerReservation = async (id) => {
             config={config} villes={villes} reservations={reservations}
             onSaveConfig={persistConfig} onAddVille={addVille} onRemoveVille={removeVille}
             onAddSession={addSession} onRemoveSession={removeSession} onClose={seDeconnecter} onChangePassword={changerMotDePasse}
-          />
+          onSupprimerReservation={supprimerReservation}
+onRestaurerReservation={restaurerReservation}
+voirCorbeille={voirCorbeille}
+onToggleCorbeille={() => setVoirCorbeille(!voirCorbeille)}
+/>
         ) : view === "legal" ? (
           <LegalPage texte={config.mentionsLegales} onBack={() => setView("parent")} />
         ) : paiementConfirme ? (
