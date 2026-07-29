@@ -1013,7 +1013,7 @@ function exportCSV(reservations) {
 }
 
 function AdminPanel({ config, villes, reservations, onSaveConfig, onAddVille, onRemoveVille, onAddSession, onRemoveSession, onClose, onChangePassword, onSupprimerReservation, onRestaurerReservation, voirCorbeille, onToggleCorbeille }) {
- }) {
+ 
   const [titre, setTitre] = useState(config.titre);
   const [description, setDescription] = useState(config.description);
   const [prix, setPrix] = useState(config.prix);
