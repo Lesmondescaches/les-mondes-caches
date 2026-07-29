@@ -1375,7 +1375,8 @@ function AdminPanel({ config, villes, reservations, onSaveConfig, onAddVille, on
           <p className="text-sm text-[#8A7A56] italic">Aucune réservation pour l'instant.</p>
         ) : (
           <div className="space-y-2">
-            {reservations.filter((r) => !r.supprime === voirCorbeille).map((r) => (
+            {reservations.filter((r) => (r.supprime || false) === voirCorbeille).map((r) => (
+
 
               <div key={r.id} className="text-sm rounded-lg px-3 py-2 flex flex-wrap gap-x-4 gap-y-1 border" style={{ borderColor: "#DCC79C" }}>
                 <span className="font-semibold" style={{ color: "#2B4433" }}>{r.nom}</span>
