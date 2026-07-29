@@ -669,7 +669,10 @@ function MerciPaiement({ onRetour }) {
       <h2 className="lmc-display text-4xl mb-2" style={{ color: "#2B4433" }}>Merci !</h2>
       <p className="text-[#5C4A3A] mb-6 max-w-md mx-auto font-medium">
         Ton paiement a bien été pris en compte. On a hâte de vous accueillir !
-      </p>
+      </p> <p className="text-xs mt-4" style={{ color: "#5C4A3A" }}>
+  Un email de confirmation vous a été envoyé. Pensez à vérifier vos courriers indésirables/spams si vous ne le voyez pas d'ici quelques minutes.
+</p>
+
       <button onClick={onRetour} className="text-sm text-[#5C4A3A] underline underline-offset-4 font-medium">
         Retour à l'accueil
       </button>
