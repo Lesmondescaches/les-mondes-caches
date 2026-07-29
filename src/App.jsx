@@ -225,6 +225,7 @@ export default function LesMondesCaches() {
   const [config, setConfig] = useState(DEFAULT_CONFIG);
   const [villes, setVilles] = useState([]);
   const [reservations, setReservations] = useState([]);
+const [voirCorbeille, setVoirCorbeille] = useState(false);
 
   const [view, setView] = useState("parent");
   const [session, setSession] = useState(null);
@@ -287,6 +288,25 @@ export default function LesMondesCaches() {
       console.error("Erreur de chargement des réservations:", e);
     }
   }, []);
+const supprimerReservation = async (id) => {
+  try {
+    const { error: err } = await supabase.from("reservations").update({ supprime: true }).eq("id", id);
+    if (err) throw err;
+    loadReservations();
+  } catch (e) {
+    console.error("Erreur suppression réservation:", e);
+  }
+};
+
+const restaurerReservation = async (id) => {
+  try {
+    const { error: err } = await supabase.from("reservations").update({ supprime: false }).eq("id", id);
+    if (err) throw err;
+    loadReservations();
+  } catch (e) {
+    console.error("Erreur restauration réservation:", e);
+  }
+};
 
   useEffect(() => {
     if (view === "admin" && estConnecte) loadReservations();
