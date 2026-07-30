@@ -220,21 +220,23 @@ export default function LesMondesCaches() {
   if (params.get("merci") === "1") {
     setPaiementConfirme(true);
     window.history.replaceState({}, "", window.location.pathname);
-  }
 
-  const pending = localStorage.getItem("lmc_reservation_pending");
-  if (pending) {
-    try {
-      const reservation = JSON.parse(pending);
-      insertReservation(reservation).then(() => {
-        envoyerEmails(reservation);
-        localStorage.removeItem("lmc_reservation_pending");
-      });
-    } catch (e) {
-      console.error("Erreur finalisation réservation après paiement:", e);
+    const pending = params.get("merci") === "1" ? localStorage.getItem("lmc_reservation_pending") : null;
+    if (pending) {
+      try {
+        const reservation = JSON.parse(pending);
+        insertReservation(reservation).then(() => {
+          envoyerEmails(reservation);
+          localStorage.removeItem("lmc_reservation_pending");
+        });
+      } catch (e) {
+        console.error("Erreur finalisation réservation après paiement:", e);
+      }
     }
   }
 }, []);
+
+
 
   const [config, setConfig] = useState(DEFAULT_CONFIG);
   const [villes, setVilles] = useState([]);
