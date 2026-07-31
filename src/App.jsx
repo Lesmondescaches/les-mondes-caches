@@ -224,8 +224,10 @@ export default function LesMondesCaches() {
     const pending = params.get("merci") === "1" ? localStorage.getItem("lmc_reservation_pending") : null;
     if (pending) {
       try {
-        const reservation = JSON.parse(pending);
+        const { reservation, nextVilles } = JSON.parse(pending);
         insertReservation(reservation).then(() => {
+         if (nextVilles) persistVilles(nextVilles);
+
           envoyerEmails(reservation);
           localStorage.removeItem("lmc_reservation_pending");
         });
@@ -500,8 +502,7 @@ const restaurerReservation = async (id) => {
       ...form,
       creeLe: new Date().toISOString(),
     };
-    await persistVilles(nextVilles);
-    localStorage.setItem("lmc_reservation_pending", JSON.stringify(reservation));
+        localStorage.setItem("lmc_reservation_pending", JSON.stringify({ reservation, nextVilles }));
 
     localStorage.setItem("lmc_derniere_resa", String(Date.now()));
     window.location.href = config.lienPaiement || window.location.href;
