@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   MapPin, Sparkles, Settings, X, Plus, Trash2, ArrowLeft, Check, Users, Calendar,
   Clock, Coins, Loader2, Leaf, Mail, Phone, ChevronDown, ChevronUp, Download,
-  CalendarPlus, Star, ScrollText, Lock, Upload
+  CalendarPlus, Star, ScrollText, Lock, Upload, ShoppingBag, Minus, Tag
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 
@@ -93,6 +93,7 @@ const FONT_STYLE = `
 `;
 
 const uid = () => Math.random().toString(36).slice(2, 10);
+const formatPrix = (n) => `${Number(n).toFixed(2).replace(".", ",")} €`;
 
 const DEFAULT_CONFIG = {
   titre: "L'Atelier des Mondes Cachés",
@@ -244,6 +245,10 @@ export default function LesMondesCaches() {
   const [villes, setVilles] = useState([]);
   const [reservations, setReservations] = useState([]);
 const [voirCorbeille, setVoirCorbeille] = useState(false);
+  const [produits, setProduits] = useState([]);
+  const [panier, setPanier] = useState([]);
+  const [panierOuvert, setPanierOuvert] = useState(false);
+  const [produitDetail, setProduitDetail] = useState(null);
 
   const [view, setView] = useState("parent");
   const [session, setSession] = useState(null);
@@ -336,11 +341,12 @@ const restaurerReservation = async (id) => {
       const { data, error: err } = await supabase
         .from("kv_store")
         .select("key, value")
-        .in("key", ["config", "villes"]);
+        .in("key", ["config", "villes", "produits"]);
       if (err) throw err;
       const map = Object.fromEntries((data || []).map((row) => [row.key, row.value]));
       setConfig(map.config ? { ...DEFAULT_CONFIG, ...JSON.parse(map.config) } : DEFAULT_CONFIG);
       setVilles(map.villes ? JSON.parse(map.villes) : []);
+      setProduits(map.produits ? JSON.parse(map.produits) : []);
     } catch (e) {
       console.error("Erreur de chargement Supabase:", e);
       setError("Impossible de charger les données.");
@@ -373,6 +379,34 @@ const restaurerReservation = async (id) => {
       setError(`Échec de l'enregistrement (villes) : ${e?.message || e}`);
     }
   };
+
+  const persistProduits = async (next) => {
+    setProduits(next);
+    try {
+      const { error: err } = await supabase.from("kv_store").upsert({ key: "produits", value: JSON.stringify(next) });
+      if (err) throw err;
+    } catch (e) {
+      console.error("Erreur Supabase produits:", e);
+      setError(`Échec de l'enregistrement (boutique) : ${e?.message || e}`);
+    }
+  };
+  const saveProduit = (produit) => {
+    const existe = produits.some((p) => p.id === produit.id);
+    const next = existe ? produits.map((p) => (p.id === produit.id ? produit : p)) : [...produits, produit];
+    persistProduits(next);
+  };
+  const removeProduit = (id) => persistProduits(produits.filter((p) => p.id !== id));
+
+  const ajouterAuPanier = (produit, qte = 1) => {
+    setPanier((prev) => {
+      const trouve = prev.find((i) => i.id === produit.id);
+      if (trouve) return prev.map((i) => (i.id === produit.id ? { ...i, qte: i.qte + qte } : i));
+      return [...prev, { ...produit, qte }];
+    });
+    setPanierOuvert(true);
+  };
+  const retirerDuPanier = (id) => setPanier((prev) => prev.filter((i) => i.id !== id));
+  const changerQtePanier = (id, qte) => setPanier((prev) => prev.map((i) => (i.id === id ? { ...i, qte: Math.max(1, qte) } : i)));
 
   const envoyerEmails = async (r) => {
     if (!config.emailjsServiceId || !config.emailjsPublicKey || !window.emailjs) return;
@@ -543,6 +577,24 @@ const restaurerReservation = async (id) => {
         <Firefly top="40%" left="48%" delay="1.8s" size={7} />
         <Firefly top="78%" left="35%" delay="2.6s" size={6} />
 
+        {(view === "parent" || view === "boutique") && (
+          <button
+            onClick={() => setPanierOuvert(true)}
+            className="absolute top-5 right-16 z-10 text-[#F7ECD8]/70 hover:text-[#E8B94A] transition-colors"
+            aria-label="Voir le panier"
+          >
+            <ShoppingBag size={20} />
+            {panier.length > 0 && (
+              <span
+                className="absolute -top-2 -right-2 text-[10px] font-bold rounded-full min-w-[16px] h-4 flex items-center justify-center px-1"
+                style={{ background: "#E8B94A", color: "#2B2118" }}
+              >
+                {panier.reduce((s, i) => s + i.qte, 0)}
+              </span>
+            )}
+          </button>
+        )}
+
         <button
           onClick={() => {
             if (view === "admin") {
@@ -598,6 +650,25 @@ const restaurerReservation = async (id) => {
               </span>
             ) : null}
           </div>
+
+          {(view === "parent" || view === "boutique") && (
+            <div className="flex items-center gap-2 mt-6">
+              <button
+                onClick={() => setView("parent")}
+                className="text-xs font-semibold px-4 py-2 rounded-full transition-colors"
+                style={view === "parent" ? { background: "#E8B94A", color: "#2B2118" } : { background: "rgba(247,236,216,0.12)", color: "#F7ECD8", border: "1px solid rgba(232,185,74,0.4)" }}
+              >
+                Ateliers
+              </button>
+              <button
+                onClick={() => setView("boutique")}
+                className="text-xs font-semibold px-4 py-2 rounded-full transition-colors"
+                style={view === "boutique" ? { background: "#E8B94A", color: "#2B2118" } : { background: "rgba(247,236,216,0.12)", color: "#F7ECD8", border: "1px solid rgba(232,185,74,0.4)" }}
+              >
+                Boutique
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
@@ -624,16 +695,20 @@ const restaurerReservation = async (id) => {
           />
         ) : view === "admin" ? (
           <AdminPanel
-            config={config} villes={villes} reservations={reservations}
+            config={config} villes={villes} reservations={reservations} produits={produits}
             onSaveConfig={persistConfig} onAddVille={addVille} onRemoveVille={removeVille}
             onAddSession={addSession} onRemoveSession={removeSession} onClose={seDeconnecter} onChangePassword={changerMotDePasse}
           onSupprimerReservation={supprimerReservation}
 onRestaurerReservation={restaurerReservation}
 voirCorbeille={voirCorbeille}
 onToggleCorbeille={() => setVoirCorbeille(!voirCorbeille)}
+onSaveProduit={saveProduit}
+onRemoveProduit={removeProduit}
 />
         ) : view === "legal" ? (
           <LegalPage texte={config.mentionsLegales} onBack={() => setView("parent")} />
+        ) : view === "boutique" ? (
+          <BoutiquePage produits={produits} onOpenProduit={setProduitDetail} onAjouterPanier={ajouterAuPanier} />
         ) : paiementConfirme ? (
           <MerciPaiement onRetour={() => setPaiementConfirme(false)} />
         ) : (
@@ -645,6 +720,22 @@ onToggleCorbeille={() => setVoirCorbeille(!voirCorbeille)}
           />
         )}
       </main>
+
+      {produitDetail && (
+        <ProduitModal
+          produit={produitDetail}
+          onClose={() => setProduitDetail(null)}
+          onAjouter={(qte) => { ajouterAuPanier(produitDetail, qte); setProduitDetail(null); }}
+        />
+      )}
+
+      <PanierDrawer
+        ouvert={panierOuvert}
+        panier={panier}
+        onFermer={() => setPanierOuvert(false)}
+        onChangerQte={changerQtePanier}
+        onRetirer={retirerDuPanier}
+      />
 
       <footer className="text-center text-[#8A7A56] text-xs py-8 flex flex-col items-center gap-2">
         <Leaf size={14} className="text-[#6E8F52]" />
@@ -1014,6 +1105,271 @@ function Field({ label, children }) {
   );
 }
 
+/* ---------- Boutique (vitrine) ---------- */
+
+function BoutiquePage({ produits, onOpenProduit, onAjouterPanier }) {
+  const [filtre, setFiltre] = useState("tous");
+  const categories = Array.from(new Set(produits.map((p) => p.categorie).filter(Boolean)));
+  const visibles = filtre === "tous" ? produits : produits.filter((p) => p.categorie === filtre);
+
+  return (
+    <div>
+      <SectionTitle icon={<ShoppingBag size={20} style={{ color: "#E8B94A" }} />}>La boutique</SectionTitle>
+
+      {produits.length === 0 ? (
+        <p className="text-[#8A7A56] font-medium">La boutique arrive bientôt — reviens un peu plus tard.</p>
+      ) : (
+        <>
+          <div className="flex flex-wrap gap-2 mb-6">
+            <button
+              onClick={() => setFiltre("tous")}
+              className="text-xs font-semibold px-3 py-1.5 rounded-full transition-colors"
+              style={filtre === "tous" ? { background: "#2B4433", color: "#F7ECD8" } : { background: "#F3E3CB", color: "#5C4A3A" }}
+            >
+              Tout
+            </button>
+            {categories.map((c) => (
+              <button
+                key={c}
+                onClick={() => setFiltre(c)}
+                className="text-xs font-semibold px-3 py-1.5 rounded-full transition-colors"
+                style={filtre === c ? { background: "#2B4433", color: "#F7ECD8" } : { background: "#F3E3CB", color: "#5C4A3A" }}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-5">
+            {visibles.map((p) => (
+              <div key={p.id} className="rounded-2xl border overflow-hidden relative" style={{ borderColor: "#DCC79C", background: "#FBF3E3" }}>
+                <LeafCorner className="absolute top-2 right-2 opacity-70 z-10" />
+                <div className="h-44 w-full overflow-hidden" style={{ background: "#F3E3CB" }}>
+                  {p.image ? (
+                    <img src={p.image} alt={p.titre} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <Sparkles size={26} style={{ color: "#DCC79C" }} />
+                    </div>
+                  )}
+                  {p.badge && (
+                    <span className="absolute top-3 left-3 text-[10px] font-bold px-2.5 py-1 rounded-full" style={{ background: "rgba(43,68,51,0.85)", color: "#F7ECD8" }}>
+                      {p.badge}
+                    </span>
+                  )}
+                </div>
+                <div className="p-4">
+                  {p.categorie && (
+                    <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide mb-1" style={{ color: "#8A7A56" }}>
+                      <Tag size={10} /> {p.categorie}
+                    </span>
+                  )}
+                  <h3 className="font-semibold text-base mb-1" style={{ color: "#2B4433" }}>{p.titre}</h3>
+                  <p className="text-sm mb-3" style={{ color: "#8A7A56" }}>{p.resume}</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold" style={{ color: "#2B4433" }}>{formatPrix(p.prix)}</span>
+                    <div className="flex gap-2">
+                      <button onClick={() => onOpenProduit(p)} className="text-xs font-semibold px-3 py-2 rounded-full border" style={{ borderColor: "#DCC79C", color: "#5C4A3A" }}>
+                        Découvrir
+                      </button>
+                      <button onClick={() => onAjouterPanier(p, 1)} className="text-xs font-semibold px-3 py-2 rounded-full" style={{ background: "#E8B94A", color: "#2B2118" }}>
+                        Ajouter
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function ProduitModal({ produit, onClose, onAjouter }) {
+  const [qte, setQte] = useState(1);
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center p-4" style={{ background: "rgba(27,20,10,0.55)" }} onClick={onClose}>
+      <div className="rounded-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto relative" style={{ background: "#FBF3E3" }} onClick={(e) => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "rgba(43,68,51,0.85)", color: "#F7ECD8" }} aria-label="Fermer">
+          <X size={16} />
+        </button>
+        <div className="h-52 w-full overflow-hidden" style={{ background: "#F3E3CB" }}>
+          {produit.image ? (
+            <img src={produit.image} alt={produit.titre} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center"><Sparkles size={32} style={{ color: "#DCC79C" }} /></div>
+          )}
+        </div>
+        <div className="p-6">
+          {produit.categorie && (
+            <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide mb-1" style={{ color: "#8A7A56" }}>
+              <Tag size={10} /> {produit.categorie}
+            </span>
+          )}
+          <h2 className="lmc-display text-3xl mb-2" style={{ color: "#2B4433" }}>{produit.titre}</h2>
+          <p className="text-sm leading-relaxed mb-4" style={{ color: "#5C4A3A" }}>{produit.description || produit.resume}</p>
+          <div className="flex items-center gap-4 mb-4">
+            <span className="text-xl font-bold" style={{ color: "#2B4433" }}>{formatPrix(produit.prix)}</span>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setQte((q) => Math.max(1, q - 1))} className="w-7 h-7 rounded-full border flex items-center justify-center" style={{ borderColor: "#DCC79C" }}><Minus size={14} /></button>
+              <span className="font-semibold w-4 text-center">{qte}</span>
+              <button onClick={() => setQte((q) => q + 1)} className="w-7 h-7 rounded-full border flex items-center justify-center" style={{ borderColor: "#DCC79C" }}><Plus size={14} /></button>
+            </div>
+          </div>
+          <button onClick={() => onAjouter(qte)} className="w-full font-semibold py-3 rounded-full transition-colors" style={{ background: "#2B4433", color: "#F7ECD8" }}>
+            Ajouter au panier
+          </button>
+          {produit.lienPaypal && (
+            <a href={produit.lienPaypal} target="_blank" rel="noreferrer" className="block text-center mt-2 text-sm font-semibold py-3 rounded-full" style={{ background: "#E8B94A", color: "#2B2118" }}>
+              Acheter directement
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PanierDrawer({ ouvert, panier, onFermer, onChangerQte, onRetirer }) {
+  const total = panier.reduce((s, i) => s + i.qte * i.prix, 0);
+  return (
+    <>
+      <div
+        className="fixed inset-0 z-30 transition-opacity"
+        style={{ background: "rgba(27,20,10,0.5)", opacity: ouvert ? 1 : 0, pointerEvents: ouvert ? "auto" : "none" }}
+        onClick={onFermer}
+      />
+      <aside
+        className="fixed top-0 right-0 h-full z-40 flex flex-col transition-transform"
+        style={{ width: "min(380px, 92vw)", background: "#FBF3E3", transform: ouvert ? "translateX(0)" : "translateX(105%)" }}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "#DCC79C" }}>
+          <h3 className="lmc-display text-2xl" style={{ color: "#2B4433" }}>Ton panier</h3>
+          <button onClick={onFermer} aria-label="Fermer le panier"><X size={18} style={{ color: "#5C4A3A" }} /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+          {panier.length === 0 ? (
+            <p className="text-sm" style={{ color: "#8A7A56" }}>Ton panier est vide pour l'instant.</p>
+          ) : (
+            <div className="space-y-4">
+              {panier.map((i) => (
+                <div key={i.id} className="flex gap-3 items-center">
+                  <div className="w-14 h-14 rounded-lg overflow-hidden shrink-0" style={{ background: "#F3E3CB" }}>
+                    {i.image ? <img src={i.image} alt="" className="w-full h-full object-cover" /> : null}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-sm truncate" style={{ color: "#2B4433" }}>{i.titre}</div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <button onClick={() => onChangerQte(i.id, i.qte - 1)} className="w-6 h-6 rounded-full border flex items-center justify-center" style={{ borderColor: "#DCC79C" }}><Minus size={12} /></button>
+                      <span className="text-sm w-4 text-center">{i.qte}</span>
+                      <button onClick={() => onChangerQte(i.id, i.qte + 1)} className="w-6 h-6 rounded-full border flex items-center justify-center" style={{ borderColor: "#DCC79C" }}><Plus size={12} /></button>
+                      <button onClick={() => onRetirer(i.id)} className="ml-auto text-xs" style={{ color: "#B5744A" }}><Trash2 size={14} /></button>
+                    </div>
+                  </div>
+                  <div className="text-sm font-semibold" style={{ color: "#2B4433" }}>{formatPrix(i.prix * i.qte)}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="px-5 py-4 border-t" style={{ borderColor: "#DCC79C" }}>
+          <div className="flex justify-between text-sm font-semibold mb-3" style={{ color: "#2B4433" }}>
+            <span>Total</span><span>{formatPrix(total)}</span>
+          </div>
+          {panier.length > 0 ? (
+            <div className="space-y-2">
+              {panier.map((i) =>
+                i.lienPaypal ? (
+                  <a key={i.id} href={i.lienPaypal} target="_blank" rel="noreferrer" className="block text-center text-sm font-semibold py-2.5 rounded-full" style={{ background: "#E8B94A", color: "#2B2118" }}>
+                    Payer « {i.titre} » — {formatPrix(i.prix * i.qte)}
+                  </a>
+                ) : null
+              )}
+              {panier.every((i) => !i.lienPaypal) && (
+                <p className="text-xs" style={{ color: "#8A7A56" }}>Aucun lien de paiement encore relié à ces articles.</p>
+              )}
+            </div>
+          ) : null}
+        </div>
+      </aside>
+    </>
+  );
+}
+
+function ProduitForm({ produit, onCancel, onSave }) {
+  const [form, setForm] = useState(produit);
+  const [uploading, setUploading] = useState(false);
+  const [erreur, setErreur] = useState("");
+
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const handlePhoto = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { setErreur("Ce fichier n'est pas une image."); return; }
+    setErreur("");
+    setUploading(true);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxSize = 900;
+        let { width, height } = img;
+        if (width > height && width > maxSize) { height = Math.round(height * (maxSize / width)); width = maxSize; }
+        else if (height >= width && height > maxSize) { width = Math.round(width * (maxSize / height)); height = maxSize; }
+        const canvas = document.createElement("canvas");
+        canvas.width = width; canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+        setForm((f) => ({ ...f, image: canvas.toDataURL("image/jpeg", 0.8) }));
+        setUploading(false);
+      };
+      img.onerror = () => { setErreur("Impossible de lire cette image."); setUploading(false); };
+      img.src = ev.target.result;
+    };
+    reader.onerror = () => { setErreur("Impossible de lire ce fichier."); setUploading(false); };
+    reader.readAsDataURL(file);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(27,20,10,0.55)" }} onClick={onCancel}>
+      <div className="rounded-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto p-6" style={{ background: "#FBF3E3" }} onClick={(e) => e.stopPropagation()}>
+        <h3 className="lmc-display text-2xl mb-4" style={{ color: "#2B4433" }}>{produit.titre ? "Modifier l'article" : "Nouvel article"}</h3>
+        <div className="space-y-3">
+          <Field label="Titre"><input className="lmc-input" value={form.titre} onChange={set("titre")} /></Field>
+          <Field label="Catégorie"><input className="lmc-input" value={form.categorie} onChange={set("categorie")} placeholder="Ex. Livret, Boîte surprise, Bijou..." /></Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Prix (€)"><input type="number" step="0.5" className="lmc-input" value={form.prix} onChange={(e) => setForm((f) => ({ ...f, prix: parseFloat(e.target.value) || 0 }))} /></Field>
+            <Field label="Badge (optionnel)"><input className="lmc-input" value={form.badge} onChange={set("badge")} placeholder="Ex. Nouveauté" /></Field>
+          </div>
+          <Field label="Résumé court (carte produit)"><input className="lmc-input" value={form.resume} onChange={set("resume")} /></Field>
+          <Field label="Description complète"><textarea className="lmc-input" rows={3} value={form.description} onChange={set("description")} /></Field>
+          <Field label="Photo">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-lg overflow-hidden shrink-0" style={{ border: "2px solid #DCC79C", background: "#F3E3CB" }}>
+                {form.image ? <img src={form.image} alt="Aperçu" className="w-full h-full object-cover" /> : null}
+              </div>
+              <label className="text-sm font-semibold px-4 py-2 rounded-full cursor-pointer inline-flex items-center gap-2 w-fit" style={{ background: "#2B4433", color: "#F7ECD8" }}>
+                <Upload size={14} />
+                {uploading ? "Traitement..." : "Choisir une photo"}
+                <input type="file" accept="image/*" onChange={handlePhoto} className="hidden" disabled={uploading} />
+              </label>
+            </div>
+            {erreur && <p className="text-xs mt-1 font-medium" style={{ color: "#B5744A" }}>{erreur}</p>}
+          </Field>
+          <Field label="Lien de paiement PayPal (optionnel)"><input className="lmc-input" value={form.lienPaypal} onChange={set("lienPaypal")} placeholder="https://www.paypal.com/..." /></Field>
+        </div>
+        <div className="flex gap-2 mt-5">
+          <button onClick={onCancel} className="flex-1 text-sm font-semibold py-2.5 rounded-full border" style={{ borderColor: "#DCC79C", color: "#5C4A3A" }}>Annuler</button>
+          <button onClick={() => form.titre.trim() && onSave(form)} className="flex-1 text-sm font-semibold py-2.5 rounded-full" style={{ background: "#2B4433", color: "#F7ECD8" }}>Enregistrer</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function exportCSV(reservations) {
   const header = "Nom,Email,Telephone,Ville,Date,Heure,Enfants,Statut\n";
   const rows = reservations
@@ -1034,7 +1390,7 @@ function exportCSV(reservations) {
   URL.revokeObjectURL(url);
 }
 
-function AdminPanel({ config, villes, reservations, onSaveConfig, onAddVille, onRemoveVille, onAddSession, onRemoveSession, onClose, onChangePassword, onSupprimerReservation, onRestaurerReservation, voirCorbeille, onToggleCorbeille }) {
+function AdminPanel({ config, villes, reservations, produits, onSaveConfig, onAddVille, onRemoveVille, onAddSession, onRemoveSession, onClose, onChangePassword, onSupprimerReservation, onRestaurerReservation, voirCorbeille, onToggleCorbeille, onSaveProduit, onRemoveProduit }) {
  
   const [titre, setTitre] = useState(config.titre);
   const [description, setDescription] = useState(config.description);
@@ -1066,6 +1422,7 @@ function AdminPanel({ config, villes, reservations, onSaveConfig, onAddVille, on
   const [mdpEnCours, setMdpEnCours] = useState(false);
   const [mdpMessage, setMdpMessage] = useState("");
   const [mdpErreur, setMdpErreur] = useState("");
+  const [produitEnEdition, setProduitEnEdition] = useState(null);
 
   const soumettreNouveauMdp = async () => {
     setMdpMessage("");
@@ -1340,6 +1697,44 @@ function AdminPanel({ config, villes, reservations, onSaveConfig, onAddVille, on
           {villes.length === 0 && <p className="text-sm text-[#8A7A56] italic">Ajoute une première ville pour commencer.</p>}
         </div>
       </section>
+
+      <section className="rounded-2xl border p-6 mb-6" style={{ background: "#FBF3E3", borderColor: "#DCC79C" }}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold flex items-center gap-2" style={{ color: "#2B4433" }}>
+            <ShoppingBag size={16} /> Boutique — Articles
+          </h3>
+          <button
+            onClick={() => setProduitEnEdition({ id: uid(), titre: "", categorie: "", prix: 10, badge: "", resume: "", description: "", image: "", lienPaypal: "" })}
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full"
+            style={{ background: "#E8B94A", color: "#2B2118" }}
+          >
+            <Plus size={13} /> Ajouter un article
+          </button>
+        </div>
+        {produits.length === 0 ? (
+          <p className="text-sm text-[#8A7A56] italic">Aucun article pour l'instant.</p>
+        ) : (
+          <div className="space-y-2">
+            {produits.map((p) => (
+              <div key={p.id} className="flex items-center justify-between text-sm rounded-lg px-3 py-2" style={{ background: "#F3E3CB", color: "#2B4433" }}>
+                <span><strong>{p.titre}</strong> {p.categorie ? `— ${p.categorie}` : ""} — {formatPrix(p.prix)}</span>
+                <div className="flex items-center gap-3">
+                  <button onClick={() => setProduitEnEdition(p)} className="text-xs underline" style={{ color: "#2B4433" }}>Modifier</button>
+                  <button onClick={() => onRemoveProduit(p.id)} className="text-[#B5744A] hover:text-[#8A4A26]"><Trash2 size={14} /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {produitEnEdition && (
+        <ProduitForm
+          produit={produitEnEdition}
+          onCancel={() => setProduitEnEdition(null)}
+          onSave={(p) => { onSaveProduit(p); setProduitEnEdition(null); }}
+        />
+      )}
 
       <section className="rounded-2xl border p-6 mb-6" style={{ background: "#FBF3E3", borderColor: "#DCC79C" }}>
         <h3 className="font-semibold mb-4" style={{ color: "#2B4433" }}>Témoignages</h3>
