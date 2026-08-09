@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
   MapPin, Sparkles, Settings, X, Plus, Trash2, ArrowLeft, Check, Users, Calendar,
-  Clock, Coins, Loader2, Leaf, Mail, Phone, ChevronDown, ChevronUp, Download,
+  Clock, Coins, Loader2, Leaf, Mail, Phone, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Download,
   CalendarPlus, Star, ScrollText, Lock, Upload, ShoppingBag, Minus, Tag
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
@@ -94,6 +94,7 @@ const FONT_STYLE = `
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const formatPrix = (n) => `${Number(n).toFixed(2).replace(".", ",")} €`;
+const getImages = (p) => (p.images && p.images.length ? p.images : p.image ? [p.image] : []);
 
 const DEFAULT_CONFIG = {
   titre: "L'Atelier des Mondes Cachés",
@@ -110,6 +111,8 @@ const DEFAULT_CONFIG = {
   emailjsPublicKey: "feN2CqnAJEyty4ZgA",
   emailjsTemplateParent: "template_z09d89r",
   emailjsTemplateAdmin: "template_z09d89r",
+  emailjsTemplateCommandeParent: "",
+  emailjsTemplateCommandeAdmin: "",
   conditions:
     "Annulation possible jusqu'à 48h avant l'atelier. En cas de pluie, l'atelier est maintenu en intérieur ou reporté selon les cas.",
   motAccueil:
@@ -118,15 +121,22 @@ const DEFAULT_CONFIG = {
     "Aucun créneau n'est ouvert pour le moment. Reviens un peu plus tard, un nouveau monde va s'ouvrir.",
   noticeRetractation:
     "Conformément à l'article L221-28 du Code de la consommation, le droit de rétractation ne s'applique pas aux prestations de loisirs fournies à une date déterminée. En confirmant, tu acceptes cette condition ainsi que nos conditions générales de vente.",
+  noticeRetractationBoutique:
+    "Conformément aux articles L221-18 et suivants du Code de la consommation, tu disposes d'un délai de 14 jours à compter de la réception de ta commande pour exercer ton droit de rétractation, sans avoir à justifier de motif. En confirmant, tu acceptes cette condition ainsi que nos conditions générales de vente.",
   mentionsLegales:
     "MENTIONS LÉGALES\n\nÉditeur du site : [Ton nom et prénom]\nStatut : [à compléter, ex. micro-entreprise]\nSIRET : [à compléter]\nAdresse : [à compléter]\nEmail : [à compléter]\nTéléphone : [à compléter]\n\n" +
-    "CONDITIONS GÉNÉRALES DE VENTE\n\nArticle 1 — Prix : les tarifs affichés sont ceux en vigueur au moment de la réservation.\n" +
+    "CONDITIONS GÉNÉRALES DE VENTE — ATELIERS\n\nArticle 1 — Prix : les tarifs affichés sont ceux en vigueur au moment de la réservation.\n" +
     "Article 2 — Réservation : la réservation est confirmée dès validation du formulaire en ligne, dans la limite des places disponibles.\n" +
     "Article 3 — Paiement : le règlement s'effectue via un lien de paiement sécurisé externe.\n" +
     "Article 4 — Annulation : [à compléter — délai et conditions de remboursement].\n" +
     "Article 5 — Droit de rétractation : conformément à l'article L221-28 du Code de la consommation, le droit de rétractation ne s'applique pas aux prestations de loisirs fournies à une date déterminée.\n" +
     "Article 6 — Droit à l'image : aucune photo d'un enfant n'est publiée sans l'accord préalable d'un parent ou représentant légal.\n\n" +
-    "POLITIQUE DE CONFIDENTIALITÉ\n\nLes informations recueillies (nom, email, téléphone, nombre d'enfants) servent uniquement à la gestion des réservations. Elles ne sont jamais transmises à des tiers, hormis le prestataire de paiement pour le règlement. Tu peux demander l'accès, la rectification ou la suppression de tes données à tout moment en écrivant à [email de contact].",
+    "CONDITIONS GÉNÉRALES DE VENTE — BOUTIQUE\n\nArticle 1 — Prix : les tarifs affichés sont ceux en vigueur au moment de la commande, frais de port [à compléter].\n" +
+    "Article 2 — Commande : la commande est enregistrée dès réception du paiement.\n" +
+    "Article 3 — Expédition : délai indicatif d'expédition [à compléter, ex. sous 5 à 10 jours ouvrés].\n" +
+    "Article 4 — Droit de rétractation : conformément aux articles L221-18 et suivants du Code de la consommation, tu disposes de 14 jours à compter de la réception de ta commande pour te rétracter, sans justification. L'article doit être retourné dans son état d'origine ; les frais de retour restent à la charge du client sauf mention contraire.\n" +
+    "Article 5 — Articles défectueux ou endommagés : contacte-nous à [email de contact] avec une photo de l'article concerné.\n\n" +
+    "POLITIQUE DE CONFIDENTIALITÉ\n\nLes informations recueillies (nom, email, téléphone, adresse, nombre d'enfants) servent uniquement à la gestion des réservations et commandes. Elles ne sont jamais transmises à des tiers, hormis le prestataire de paiement pour le règlement. Tu peux demander l'accès, la rectification ou la suppression de tes données à tout moment en écrivant à [email de contact].",
   temoignages: [],
   faq: [
     { id: uid(), q: "Que faut-il prévoir pour l'atelier ?", r: "Une tenue confortable adaptée à la météo, et beaucoup de curiosité !" },
@@ -215,6 +225,7 @@ function buildICS(session, ville, config) {
 export default function LesMondesCaches() {
   const [loading, setLoading] = useState(true);
   const [paiementConfirme, setPaiementConfirme] = useState(false);
+  const [commandeConfirmee, setCommandeConfirmee] = useState(false);
 
   useEffect(() => {
   const params = new URLSearchParams(window.location.search);
@@ -237,6 +248,24 @@ export default function LesMondesCaches() {
       }
     }
   }
+  if (params.get("commande") === "1") {
+    setCommandeConfirmee(true);
+    window.history.replaceState({}, "", window.location.pathname);
+
+    const pendingCommande = localStorage.getItem("lmc_commande_pending");
+    if (pendingCommande) {
+      try {
+        const commande = JSON.parse(pendingCommande);
+        insertCommande(commande).then(() => {
+          envoyerEmailCommande(commande);
+          localStorage.removeItem("lmc_commande_pending");
+          setPanier([]);
+        });
+      } catch (e) {
+        console.error("Erreur finalisation commande après paiement:", e);
+      }
+    }
+  }
 }, []);
 
 
@@ -249,6 +278,9 @@ const [voirCorbeille, setVoirCorbeille] = useState(false);
   const [panier, setPanier] = useState([]);
   const [panierOuvert, setPanierOuvert] = useState(false);
   const [produitDetail, setProduitDetail] = useState(null);
+  const [commandeModalOuvert, setCommandeModalOuvert] = useState(false);
+  const [commandes, setCommandes] = useState([]);
+  const [voirCorbeilleCommandes, setVoirCorbeilleCommandes] = useState(false);
 
   const [view, setView] = useState("parent");
   const [session, setSession] = useState(null);
@@ -331,9 +363,40 @@ const restaurerReservation = async (id) => {
   }
 };
 
+  const loadCommandes = useCallback(async () => {
+    try {
+      const { data, error: err } = await supabase
+        .from("commandes")
+        .select("*")
+        .order("cree_le", { ascending: false });
+      if (err) throw err;
+      setCommandes(data || []);
+    } catch (e) {
+      console.error("Erreur de chargement des commandes:", e);
+    }
+  }, []);
+  const supprimerCommande = async (id) => {
+    try {
+      const { error: err } = await supabase.from("commandes").update({ supprime: true }).eq("id", id);
+      if (err) throw err;
+      loadCommandes();
+    } catch (e) {
+      console.error("Erreur suppression commande:", e);
+    }
+  };
+  const restaurerCommande = async (id) => {
+    try {
+      const { error: err } = await supabase.from("commandes").update({ supprime: false }).eq("id", id);
+      if (err) throw err;
+      loadCommandes();
+    } catch (e) {
+      console.error("Erreur restauration commande:", e);
+    }
+  };
+
   useEffect(() => {
-    if (view === "admin" && estConnecte) loadReservations();
-  }, [view, estConnecte, loadReservations]);
+    if (view === "admin" && estConnecte) { loadReservations(); loadCommandes(); }
+  }, [view, estConnecte, loadReservations, loadCommandes]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -456,6 +519,48 @@ const restaurerReservation = async (id) => {
     } catch (e) {
       console.error("Erreur Supabase reservations:", e);
       setError(`Échec de l'enregistrement (réservation) : ${e?.message || e}`);
+    }
+  };
+
+  const insertCommande = async (c) => {
+    try {
+      const { error: err } = await supabase.from("commandes").insert({
+        nom: c.nom,
+        email: c.email,
+        tel: c.tel || null,
+        adresse: c.adresse,
+        articles: c.articles,
+        total: c.total,
+      });
+      if (err) throw err;
+    } catch (e) {
+      console.error("Erreur Supabase commandes:", e);
+      setError(`Échec de l'enregistrement (commande) : ${e?.message || e}`);
+    }
+  };
+
+  const envoyerEmailCommande = async (c) => {
+    if (!config.emailjsServiceId || !config.emailjsPublicKey || !window.emailjs) return;
+    const params = {
+      to_email: c.email,
+      parent_nom: c.nom,
+      articles_liste: c.articles.map((a) => `${a.titre} x${a.qte}`).join(", "),
+      total: formatPrix(c.total),
+      adresse: c.adresse,
+    };
+    try {
+      if (config.emailjsTemplateCommandeParent) {
+        await window.emailjs.send(config.emailjsServiceId, config.emailjsTemplateCommandeParent, params, { publicKey: config.emailjsPublicKey });
+      }
+    } catch (e) {
+      console.error("Erreur envoi email commande (client):", e);
+    }
+    try {
+      if (config.emailjsTemplateCommandeAdmin && config.contactEmail) {
+        await window.emailjs.send(config.emailjsServiceId, config.emailjsTemplateCommandeAdmin, { ...params, to_email: config.contactEmail }, { publicKey: config.emailjsPublicKey });
+      }
+    } catch (e) {
+      console.error("Erreur envoi email commande (admin):", e);
     }
   };
 
@@ -695,7 +800,7 @@ const restaurerReservation = async (id) => {
           />
         ) : view === "admin" ? (
           <AdminPanel
-            config={config} villes={villes} reservations={reservations} produits={produits}
+            config={config} villes={villes} reservations={reservations} produits={produits} commandes={commandes}
             onSaveConfig={persistConfig} onAddVille={addVille} onRemoveVille={removeVille}
             onAddSession={addSession} onRemoveSession={removeSession} onClose={seDeconnecter} onChangePassword={changerMotDePasse}
           onSupprimerReservation={supprimerReservation}
@@ -704,11 +809,19 @@ voirCorbeille={voirCorbeille}
 onToggleCorbeille={() => setVoirCorbeille(!voirCorbeille)}
 onSaveProduit={saveProduit}
 onRemoveProduit={removeProduit}
+onSupprimerCommande={supprimerCommande}
+onRestaurerCommande={restaurerCommande}
+voirCorbeilleCommandes={voirCorbeilleCommandes}
+onToggleCorbeilleCommandes={() => setVoirCorbeilleCommandes(!voirCorbeilleCommandes)}
 />
         ) : view === "legal" ? (
           <LegalPage texte={config.mentionsLegales} onBack={() => setView("parent")} />
         ) : view === "boutique" ? (
-          <BoutiquePage produits={produits} onOpenProduit={setProduitDetail} onAjouterPanier={ajouterAuPanier} />
+          commandeConfirmee ? (
+            <MerciCommande onRetour={() => setCommandeConfirmee(false)} />
+          ) : (
+            <BoutiquePage produits={produits} onOpenProduit={setProduitDetail} onAjouterPanier={ajouterAuPanier} />
+          )
         ) : paiementConfirme ? (
           <MerciPaiement onRetour={() => setPaiementConfirme(false)} />
         ) : (
@@ -735,7 +848,16 @@ onRemoveProduit={removeProduit}
         onFermer={() => setPanierOuvert(false)}
         onChangerQte={changerQtePanier}
         onRetirer={retirerDuPanier}
+        onCommander={() => { setPanierOuvert(false); setCommandeModalOuvert(true); }}
       />
+
+      {commandeModalOuvert && (
+        <CommandeModal
+          panier={panier}
+          noticeRetractation={config.noticeRetractationBoutique}
+          onClose={() => setCommandeModalOuvert(false)}
+        />
+      )}
 
       <footer className="text-center text-[#8A7A56] text-xs py-8 flex flex-col items-center gap-2">
         <Leaf size={14} className="text-[#6E8F52]" />
@@ -785,6 +907,26 @@ function MerciPaiement({ onRetour }) {
 
       <button onClick={onRetour} className="text-sm text-[#5C4A3A] underline underline-offset-4 font-medium">
         Retour à l'accueil
+      </button>
+    </div>
+  );
+}
+
+function MerciCommande({ onRetour }) {
+  return (
+    <div className="text-center py-10">
+      <div className="w-16 h-16 rounded-full text-[#F7ECD8] flex items-center justify-center mx-auto mb-6" style={{ background: "#2B4433" }}>
+        <Check size={28} />
+      </div>
+      <h2 className="lmc-display text-4xl mb-2" style={{ color: "#2B4433" }}>Merci pour ta commande !</h2>
+      <p className="text-[#5C4A3A] mb-6 max-w-md mx-auto font-medium">
+        Ton paiement a bien été pris en compte, ta commande est enregistrée et sera préparée avec soin.
+      </p>
+      <p className="text-xs mt-4" style={{ color: "#5C4A3A" }}>
+        Un email de confirmation vous a été envoyé. Pensez à vérifier vos courriers indésirables/spams si vous ne le voyez pas d'ici quelques minutes.
+      </p>
+      <button onClick={onRetour} className="text-sm text-[#5C4A3A] underline underline-offset-4 font-medium mt-6">
+        Retour à la boutique
       </button>
     </div>
   );
@@ -1141,45 +1283,53 @@ function BoutiquePage({ produits, onOpenProduit, onAjouterPanier }) {
           </div>
 
           <div className="grid sm:grid-cols-2 gap-5">
-            {visibles.map((p) => (
-              <div key={p.id} className="rounded-2xl border overflow-hidden relative" style={{ borderColor: "#DCC79C", background: "#FBF3E3" }}>
-                <LeafCorner className="absolute top-2 right-2 opacity-70 z-10" />
-                <div className="h-44 w-full overflow-hidden" style={{ background: "#F3E3CB" }}>
-                  {p.image ? (
-                    <img src={p.image} alt={p.titre} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <Sparkles size={26} style={{ color: "#DCC79C" }} />
-                    </div>
-                  )}
-                  {p.badge && (
-                    <span className="absolute top-3 left-3 text-[10px] font-bold px-2.5 py-1 rounded-full" style={{ background: "rgba(43,68,51,0.85)", color: "#F7ECD8" }}>
-                      {p.badge}
-                    </span>
-                  )}
-                </div>
-                <div className="p-4">
-                  {p.categorie && (
-                    <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide mb-1" style={{ color: "#8A7A56" }}>
-                      <Tag size={10} /> {p.categorie}
-                    </span>
-                  )}
-                  <h3 className="font-semibold text-base mb-1" style={{ color: "#2B4433" }}>{p.titre}</h3>
-                  <p className="text-sm mb-3" style={{ color: "#8A7A56" }}>{p.resume}</p>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-bold" style={{ color: "#2B4433" }}>{formatPrix(p.prix)}</span>
-                    <div className="flex gap-2">
-                      <button onClick={() => onOpenProduit(p)} className="text-xs font-semibold px-3 py-2 rounded-full border" style={{ borderColor: "#DCC79C", color: "#5C4A3A" }}>
-                        Découvrir
-                      </button>
-                      <button onClick={() => onAjouterPanier(p, 1)} className="text-xs font-semibold px-3 py-2 rounded-full" style={{ background: "#E8B94A", color: "#2B2118" }}>
-                        Ajouter
-                      </button>
+            {visibles.map((p) => {
+              const imgs = getImages(p);
+              return (
+                <div key={p.id} className="rounded-2xl border overflow-hidden relative" style={{ borderColor: "#DCC79C", background: "#FBF3E3" }}>
+                  <LeafCorner className="absolute top-2 right-2 opacity-70 z-10" />
+                  <div className="h-44 w-full overflow-hidden relative" style={{ background: "#F3E3CB" }}>
+                    {imgs[0] ? (
+                      <img src={imgs[0]} alt={p.titre} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Sparkles size={26} style={{ color: "#DCC79C" }} />
+                      </div>
+                    )}
+                    {p.badge && (
+                      <span className="absolute top-3 left-3 text-[10px] font-bold px-2.5 py-1 rounded-full" style={{ background: "rgba(43,68,51,0.85)", color: "#F7ECD8" }}>
+                        {p.badge}
+                      </span>
+                    )}
+                    {imgs.length > 1 && (
+                      <span className="absolute bottom-3 right-3 text-[10px] font-bold px-2 py-1 rounded-full" style={{ background: "rgba(43,68,51,0.75)", color: "#F7ECD8" }}>
+                        1/{imgs.length}
+                      </span>
+                    )}
+                  </div>
+                  <div className="p-4">
+                    {p.categorie && (
+                      <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide mb-1" style={{ color: "#8A7A56" }}>
+                        <Tag size={10} /> {p.categorie}
+                      </span>
+                    )}
+                    <h3 className="font-semibold text-base mb-1" style={{ color: "#2B4433" }}>{p.titre}</h3>
+                    <p className="text-sm mb-3" style={{ color: "#8A7A56" }}>{p.resume}</p>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold" style={{ color: "#2B4433" }}>{formatPrix(p.prix)}</span>
+                      <div className="flex gap-2">
+                        <button onClick={() => onOpenProduit(p)} className="text-xs font-semibold px-3 py-2 rounded-full border" style={{ borderColor: "#DCC79C", color: "#5C4A3A" }}>
+                          Découvrir
+                        </button>
+                        <button onClick={() => onAjouterPanier(p, 1)} className="text-xs font-semibold px-3 py-2 rounded-full" style={{ background: "#E8B94A", color: "#2B2118" }}>
+                          Ajouter
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </>
       )}
@@ -1189,17 +1339,54 @@ function BoutiquePage({ produits, onOpenProduit, onAjouterPanier }) {
 
 function ProduitModal({ produit, onClose, onAjouter }) {
   const [qte, setQte] = useState(1);
+  const images = getImages(produit);
+  const [index, setIndex] = useState(0);
+  const [touchDepart, setTouchDepart] = useState(null);
+  const precedente = () => setIndex((i) => (i - 1 + images.length) % images.length);
+  const suivante = () => setIndex((i) => (i + 1) % images.length);
+  const onTouchStart = (e) => setTouchDepart(e.touches[0].clientX);
+  const onTouchEnd = (e) => {
+    if (touchDepart === null) return;
+    const delta = e.changedTouches[0].clientX - touchDepart;
+    if (delta > 40) precedente();
+    else if (delta < -40) suivante();
+    setTouchDepart(null);
+  };
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center p-4" style={{ background: "rgba(27,20,10,0.55)" }} onClick={onClose}>
       <div className="rounded-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto relative" style={{ background: "#FBF3E3" }} onClick={(e) => e.stopPropagation()}>
-        <button onClick={onClose} className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "rgba(43,68,51,0.85)", color: "#F7ECD8" }} aria-label="Fermer">
+        <button onClick={onClose} className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center z-10" style={{ background: "rgba(43,68,51,0.85)", color: "#F7ECD8" }} aria-label="Fermer">
           <X size={16} />
         </button>
-        <div className="h-52 w-full overflow-hidden" style={{ background: "#F3E3CB" }}>
-          {produit.image ? (
-            <img src={produit.image} alt={produit.titre} className="w-full h-full object-cover" />
+        <div
+          className="h-52 w-full overflow-hidden relative"
+          style={{ background: "#F3E3CB" }}
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
+        >
+          {images.length > 0 ? (
+            <img src={images[index]} alt={produit.titre} className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full flex items-center justify-center"><Sparkles size={32} style={{ color: "#DCC79C" }} /></div>
+          )}
+          {images.length > 1 && (
+            <>
+              <button onClick={precedente} className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "rgba(43,68,51,0.75)", color: "#F7ECD8" }} aria-label="Photo précédente">
+                <ChevronLeft size={16} />
+              </button>
+              <button onClick={suivante} className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "rgba(43,68,51,0.75)", color: "#F7ECD8" }} aria-label="Photo suivante">
+                <ChevronRight size={16} />
+              </button>
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+                {images.map((_, i) => (
+                  <span
+                    key={i}
+                    onClick={() => setIndex(i)}
+                    style={{ width: 6, height: 6, borderRadius: 9999, cursor: "pointer", background: i === index ? "#E8B94A" : "rgba(43,68,51,0.3)" }}
+                  />
+                ))}
+              </div>
+            </>
           )}
         </div>
         <div className="p-6">
@@ -1232,7 +1419,7 @@ function ProduitModal({ produit, onClose, onAjouter }) {
   );
 }
 
-function PanierDrawer({ ouvert, panier, onFermer, onChangerQte, onRetirer }) {
+function PanierDrawer({ ouvert, panier, onFermer, onChangerQte, onRetirer, onCommander }) {
   const total = panier.reduce((s, i) => s + i.qte * i.prix, 0);
   return (
     <>
@@ -1257,7 +1444,7 @@ function PanierDrawer({ ouvert, panier, onFermer, onChangerQte, onRetirer }) {
               {panier.map((i) => (
                 <div key={i.id} className="flex gap-3 items-center">
                   <div className="w-14 h-14 rounded-lg overflow-hidden shrink-0" style={{ background: "#F3E3CB" }}>
-                    {i.image ? <img src={i.image} alt="" className="w-full h-full object-cover" /> : null}
+                    {getImages(i)[0] ? <img src={getImages(i)[0]} alt="" className="w-full h-full object-cover" /> : null}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold text-sm truncate" style={{ color: "#2B4433" }}>{i.titre}</div>
@@ -1278,44 +1465,96 @@ function PanierDrawer({ ouvert, panier, onFermer, onChangerQte, onRetirer }) {
           <div className="flex justify-between text-sm font-semibold mb-3" style={{ color: "#2B4433" }}>
             <span>Total</span><span>{formatPrix(total)}</span>
           </div>
-          {panier.length > 0 ? (
-            <div className="space-y-2">
-              {panier.map((i) =>
-                i.lienPaypal ? (
-                  <a key={i.id} href={i.lienPaypal} target="_blank" rel="noreferrer" className="block text-center text-sm font-semibold py-2.5 rounded-full" style={{ background: "#E8B94A", color: "#2B2118" }}>
-                    Payer « {i.titre} » — {formatPrix(i.prix * i.qte)}
-                  </a>
-                ) : null
-              )}
-              {panier.every((i) => !i.lienPaypal) && (
-                <p className="text-xs" style={{ color: "#8A7A56" }}>Aucun lien de paiement encore relié à ces articles.</p>
-              )}
-            </div>
-          ) : null}
+          <button
+            onClick={onCommander}
+            disabled={panier.length === 0}
+            className="w-full text-center text-sm font-semibold py-2.5 rounded-full disabled:opacity-50"
+            style={{ background: "#E8B94A", color: "#2B2118" }}
+          >
+            Valider ma commande
+          </button>
         </div>
       </aside>
     </>
   );
 }
 
-function ProduitForm({ produit, onCancel, onSave }) {
-  const [form, setForm] = useState(produit);
-  const [uploading, setUploading] = useState(false);
+function CommandeModal({ panier, noticeRetractation, onClose }) {
+  const [etape, setEtape] = useState("formulaire");
+  const [form, setForm] = useState({ nom: "", email: "", tel: "", adresse: "" });
   const [erreur, setErreur] = useState("");
+  const total = panier.reduce((s, i) => s + i.qte * i.prix, 0);
 
-  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
-
-  const handlePhoto = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("image/")) { setErreur("Ce fichier n'est pas une image."); return; }
+  const valider = () => {
+    if (!form.nom.trim() || !form.email.trim() || !form.adresse.trim()) {
+      setErreur("Merci de renseigner au moins ton nom, ton email et ton adresse d'envoi.");
+      return;
+    }
     setErreur("");
-    setUploading(true);
+    const commande = {
+      nom: form.nom,
+      email: form.email,
+      tel: form.tel,
+      adresse: form.adresse,
+      articles: panier.map((i) => ({ id: i.id, titre: i.titre, prix: i.prix, qte: i.qte })),
+      total,
+    };
+    localStorage.setItem("lmc_commande_pending", JSON.stringify(commande));
+    setEtape("paiement");
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(27,20,10,0.55)" }} onClick={onClose}>
+      <div className="rounded-2xl max-w-md w-full max-h-[85vh] overflow-y-auto p-6 relative" style={{ background: "#FBF3E3" }} onClick={(e) => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "rgba(43,68,51,0.85)", color: "#F7ECD8" }} aria-label="Fermer"><X size={16} /></button>
+
+        {etape === "formulaire" ? (
+          <>
+            <h3 className="lmc-display text-2xl mb-1" style={{ color: "#2B4433" }}>Tes coordonnées</h3>
+            <p className="text-xs mb-4" style={{ color: "#8A7A56" }}>Pour t'envoyer ta commande et te confirmer sa réception.</p>
+            <div className="space-y-3">
+              <Field label="Ton nom"><input className="lmc-input" value={form.nom} onChange={(e) => setForm({ ...form, nom: e.target.value })} placeholder="Prénom et nom" /></Field>
+              <Field label="Email"><input type="email" className="lmc-input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="ton@email.fr" /></Field>
+              <Field label="Téléphone (optionnel)"><input className="lmc-input" value={form.tel} onChange={(e) => setForm({ ...form, tel: e.target.value })} placeholder="06 12 34 56 78" /></Field>
+              <Field label="Adresse d'envoi"><textarea className="lmc-input" rows={3} value={form.adresse} onChange={(e) => setForm({ ...form, adresse: e.target.value })} placeholder="Numéro, rue, code postal, ville" /></Field>
+            </div>
+            {erreur && <p className="text-xs mt-2 font-medium" style={{ color: "#B5744A" }}>{erreur}</p>}
+            {noticeRetractation && <p className="text-xs mt-4 leading-relaxed" style={{ color: "#8A7A56" }}>{noticeRetractation}</p>}
+            <button onClick={valider} className="w-full mt-4 font-semibold py-3 rounded-full transition-colors" style={{ background: "#2B4433", color: "#F7ECD8" }}>
+              Continuer vers le paiement
+            </button>
+          </>
+        ) : (
+          <>
+            <h3 className="lmc-display text-2xl mb-1" style={{ color: "#2B4433" }}>Paiement</h3>
+            <p className="text-xs mb-4" style={{ color: "#8A7A56" }}>
+              Règle chaque article ci-dessous. Une fois le paiement effectué, tu seras redirigé·e vers le site pour la confirmation.
+            </p>
+            <div className="space-y-2">
+              {panier.map((i) =>
+                i.lienPaypal ? (
+                  <a key={i.id} href={i.lienPaypal} target="_blank" rel="noreferrer" className="block text-center text-sm font-semibold py-2.5 rounded-full" style={{ background: "#E8B94A", color: "#2B2118" }}>
+                    Payer « {i.titre} » — {formatPrix(i.prix * i.qte)}
+                  </a>
+                ) : (
+                  <p key={i.id} className="text-xs" style={{ color: "#8A7A56" }}>« {i.titre} » n'a pas encore de lien de paiement — contacte-la directement.</p>
+                )
+              )}
+            </div>
+            <p className="text-xs mt-4" style={{ color: "#8A7A56" }}>Total : {formatPrix(total)}</p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function compressImage(file, maxSize = 900, quality = 0.8) {
+  return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = (ev) => {
       const img = new Image();
       img.onload = () => {
-        const maxSize = 900;
         let { width, height } = img;
         if (width > height && width > maxSize) { height = Math.round(height * (maxSize / width)); width = maxSize; }
         else if (height >= width && height > maxSize) { width = Math.round(width * (maxSize / height)); height = maxSize; }
@@ -1323,15 +1562,43 @@ function ProduitForm({ produit, onCancel, onSave }) {
         canvas.width = width; canvas.height = height;
         const ctx = canvas.getContext("2d");
         ctx.drawImage(img, 0, 0, width, height);
-        setForm((f) => ({ ...f, image: canvas.toDataURL("image/jpeg", 0.8) }));
-        setUploading(false);
+        resolve(canvas.toDataURL("image/jpeg", quality));
       };
-      img.onerror = () => { setErreur("Impossible de lire cette image."); setUploading(false); };
+      img.onerror = () => resolve(null);
       img.src = ev.target.result;
     };
-    reader.onerror = () => { setErreur("Impossible de lire ce fichier."); setUploading(false); };
+    reader.onerror = () => resolve(null);
     reader.readAsDataURL(file);
+  });
+}
+
+function ProduitForm({ produit, onCancel, onSave }) {
+  const [form, setForm] = useState(() => ({
+    ...produit,
+    images: produit.images && produit.images.length ? produit.images : produit.image ? [produit.image] : [],
+  }));
+  const [uploading, setUploading] = useState(false);
+  const [erreur, setErreur] = useState("");
+
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const handlePhotos = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    const nonImages = files.some((f) => !f.type.startsWith("image/"));
+    if (nonImages) setErreur("Certains fichiers ne sont pas des images et ont été ignorés.");
+    else setErreur("");
+    setUploading(true);
+    const resultats = await Promise.all(
+      files.filter((f) => f.type.startsWith("image/")).map((f) => compressImage(f))
+    );
+    const valides = resultats.filter(Boolean);
+    setForm((f) => ({ ...f, images: [...(f.images || []), ...valides] }));
+    setUploading(false);
+    e.target.value = "";
   };
+
+  const retirerPhoto = (idx) => setForm((f) => ({ ...f, images: f.images.filter((_, i) => i !== idx) }));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(27,20,10,0.55)" }} onClick={onCancel}>
@@ -1346,17 +1613,31 @@ function ProduitForm({ produit, onCancel, onSave }) {
           </div>
           <Field label="Résumé court (carte produit)"><input className="lmc-input" value={form.resume} onChange={set("resume")} /></Field>
           <Field label="Description complète"><textarea className="lmc-input" rows={3} value={form.description} onChange={set("description")} /></Field>
-          <Field label="Photo">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-lg overflow-hidden shrink-0" style={{ border: "2px solid #DCC79C", background: "#F3E3CB" }}>
-                {form.image ? <img src={form.image} alt="Aperçu" className="w-full h-full object-cover" /> : null}
-              </div>
-              <label className="text-sm font-semibold px-4 py-2 rounded-full cursor-pointer inline-flex items-center gap-2 w-fit" style={{ background: "#2B4433", color: "#F7ECD8" }}>
-                <Upload size={14} />
-                {uploading ? "Traitement..." : "Choisir une photo"}
-                <input type="file" accept="image/*" onChange={handlePhoto} className="hidden" disabled={uploading} />
+          <Field label="Photos (plusieurs possibles — le client pourra les faire défiler)">
+            <div className="flex flex-wrap gap-2 mb-3">
+              {(form.images || []).map((src, idx) => (
+                <div key={idx} className="relative w-16 h-16 rounded-lg overflow-hidden shrink-0" style={{ border: "2px solid #DCC79C" }}>
+                  <img src={src} alt={`Photo ${idx + 1}`} className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => retirerPhoto(idx)}
+                    className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full flex items-center justify-center"
+                    style={{ background: "rgba(27,20,10,0.75)", color: "#F7ECD8" }}
+                    aria-label="Retirer cette photo"
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
+              ))}
+              <label
+                className="w-16 h-16 rounded-lg cursor-pointer flex items-center justify-center shrink-0"
+                style={{ border: "2px dashed #DCC79C", color: "#8A7A56" }}
+              >
+                <Plus size={20} />
+                <input type="file" accept="image/*" multiple onChange={handlePhotos} className="hidden" disabled={uploading} />
               </label>
             </div>
+            {uploading && <p className="text-xs font-medium" style={{ color: "#8A7A56" }}>Traitement des photos…</p>}
             {erreur && <p className="text-xs mt-1 font-medium" style={{ color: "#B5744A" }}>{erreur}</p>}
           </Field>
           <Field label="Lien de paiement PayPal (optionnel)"><input className="lmc-input" value={form.lienPaypal} onChange={set("lienPaypal")} placeholder="https://www.paypal.com/..." /></Field>
@@ -1390,7 +1671,40 @@ function exportCSV(reservations) {
   URL.revokeObjectURL(url);
 }
 
-function AdminPanel({ config, villes, reservations, produits, onSaveConfig, onAddVille, onRemoveVille, onAddSession, onRemoveSession, onClose, onChangePassword, onSupprimerReservation, onRestaurerReservation, voirCorbeille, onToggleCorbeille, onSaveProduit, onRemoveProduit }) {
+function exportCommandesCSV(commandes) {
+  const header = "Nom,Email,Telephone,Adresse,Articles,Total\n";
+  const rows = commandes
+    .map((c) =>
+      [
+        c.nom,
+        c.email,
+        c.tel || "",
+        c.adresse || "",
+        (c.articles || []).map((a) => `${a.titre} x${a.qte}`).join(" / "),
+        formatPrix(c.total),
+      ]
+        .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+        .join(",")
+    )
+    .join("\n");
+  const blob = new Blob([header + rows], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "commandes-mondes-caches.csv";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function AdminPanel({
+  config, villes, reservations, produits, commandes,
+  onSaveConfig, onAddVille, onRemoveVille, onAddSession, onRemoveSession, onClose, onChangePassword,
+  onSupprimerReservation, onRestaurerReservation, voirCorbeille, onToggleCorbeille,
+  onSaveProduit, onRemoveProduit,
+  onSupprimerCommande, onRestaurerCommande, voirCorbeilleCommandes, onToggleCorbeilleCommandes,
+}) {
  
   const [titre, setTitre] = useState(config.titre);
   const [description, setDescription] = useState(config.description);
@@ -1407,10 +1721,13 @@ function AdminPanel({ config, villes, reservations, produits, onSaveConfig, onAd
   const [emailjsPublicKey, setEmailjsPublicKey] = useState(config.emailjsPublicKey || "");
   const [emailjsTemplateParent, setEmailjsTemplateParent] = useState(config.emailjsTemplateParent || "");
   const [emailjsTemplateAdmin, setEmailjsTemplateAdmin] = useState(config.emailjsTemplateAdmin || "");
+  const [emailjsTemplateCommandeParent, setEmailjsTemplateCommandeParent] = useState(config.emailjsTemplateCommandeParent || "");
+  const [emailjsTemplateCommandeAdmin, setEmailjsTemplateCommandeAdmin] = useState(config.emailjsTemplateCommandeAdmin || "");
   const [conditions, setConditions] = useState(config.conditions || "");
   const [motAccueil, setMotAccueil] = useState(config.motAccueil || "");
   const [messageAucunCreneau, setMessageAucunCreneau] = useState(config.messageAucunCreneau || "");
   const [noticeRetractation, setNoticeRetractation] = useState(config.noticeRetractation || "");
+  const [noticeRetractationBoutique, setNoticeRetractationBoutique] = useState(config.noticeRetractationBoutique || "");
   const [mentionsLegales, setMentionsLegales] = useState(config.mentionsLegales || "");
   const [temoignages, setTemoignages] = useState(config.temoignages || []);
   const [faq, setFaq] = useState(config.faq || []);
@@ -1446,8 +1763,9 @@ function AdminPanel({ config, villes, reservations, produits, onSaveConfig, onAd
   const saveAll = (overrides = {}) => {
     onSaveConfig({
       titre, description, prix: Number(prix) || 0, lienPaiement: lienPaiement.trim(), logoImage,
-      ageRange, duree, contactEmail, contactTel, conditions, motAccueil, messageAucunCreneau, noticeRetractation, mentionsLegales, temoignages, faq,
+      ageRange, duree, contactEmail, contactTel, conditions, motAccueil, messageAucunCreneau, noticeRetractation, noticeRetractationBoutique, mentionsLegales, temoignages, faq,
       emailjsServiceId: emailjsServiceId.trim(), emailjsPublicKey: emailjsPublicKey.trim(), emailjsTemplateParent: emailjsTemplateParent.trim(), emailjsTemplateAdmin: emailjsTemplateAdmin.trim(),
+      emailjsTemplateCommandeParent: emailjsTemplateCommandeParent.trim(), emailjsTemplateCommandeAdmin: emailjsTemplateCommandeAdmin.trim(),
       ...overrides,
     });
   };
@@ -1568,17 +1886,23 @@ function AdminPanel({ config, villes, reservations, produits, onSaveConfig, onAd
         <p className="text-xs mb-4" style={{ color: "#8A7A56" }}>
           Renseigne ici les identifiants de ton compte EmailJS (voir le guide) pour qu'un
           email de confirmation soit envoyé au parent, et un email de notification à toi,
-          à chaque nouvelle réservation. Tant que ces champs sont vides, aucun email n'est
-          envoyé.
+          à chaque nouvelle réservation ou commande. Tant que ces champs sont vides, aucun
+          email n'est envoyé.
         </p>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <Field label="Service ID EmailJS"><input className="lmc-input" value={emailjsServiceId} onChange={(e) => setEmailjsServiceId(e.target.value)} placeholder="service_xxxxx" /></Field>
             <Field label="Public Key EmailJS"><input className="lmc-input" value={emailjsPublicKey} onChange={(e) => setEmailjsPublicKey(e.target.value)} placeholder="xxxxxxxxxxxxx" /></Field>
           </div>
+          <p className="text-xs font-semibold" style={{ color: "#2B4433" }}>Ateliers</p>
           <div className="grid grid-cols-2 gap-4">
             <Field label="Template ID (email au parent)"><input className="lmc-input" value={emailjsTemplateParent} onChange={(e) => setEmailjsTemplateParent(e.target.value)} placeholder="template_xxxxx" /></Field>
             <Field label="Template ID (email à toi)"><input className="lmc-input" value={emailjsTemplateAdmin} onChange={(e) => setEmailjsTemplateAdmin(e.target.value)} placeholder="template_xxxxx" /></Field>
+          </div>
+          <p className="text-xs font-semibold" style={{ color: "#2B4433" }}>Boutique</p>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Template ID (email au client)"><input className="lmc-input" value={emailjsTemplateCommandeParent} onChange={(e) => setEmailjsTemplateCommandeParent(e.target.value)} placeholder="template_xxxxx" /></Field>
+            <Field label="Template ID (email à toi)"><input className="lmc-input" value={emailjsTemplateCommandeAdmin} onChange={(e) => setEmailjsTemplateCommandeAdmin(e.target.value)} placeholder="template_xxxxx" /></Field>
           </div>
           <p className="text-xs" style={{ color: "#8A7A56" }}>
             L'email de notification pour toi sera envoyé à l'adresse renseignée dans
@@ -1650,8 +1974,11 @@ function AdminPanel({ config, villes, reservations, produits, onSaveConfig, onAd
       <section className="rounded-2xl border p-6 mb-6" style={{ background: "#FBF3E3", borderColor: "#DCC79C" }}>
         <h3 className="font-semibold mb-4" style={{ color: "#2B4433" }}>Mentions légales, CGV &amp; confidentialité</h3>
         <div className="space-y-4">
-          <Field label="Mention affichée avant la validation d'une réservation">
+          <Field label="Mention affichée avant la validation d'une réservation d'atelier">
             <textarea className="lmc-input" rows={3} value={noticeRetractation} onChange={(e) => setNoticeRetractation(e.target.value)} placeholder="Ex : mention sur le droit de rétractation" />
+          </Field>
+          <Field label="Mention affichée avant le paiement d'une commande boutique">
+            <textarea className="lmc-input" rows={3} value={noticeRetractationBoutique} onChange={(e) => setNoticeRetractationBoutique(e.target.value)} placeholder="Ex : délai de rétractation de 14 jours pour les objets" />
           </Field>
           <Field label={'Page "Mentions légales & CGV" (accessible depuis le pied de page du site)'}>
             <textarea className="lmc-input" rows={8} value={mentionsLegales} onChange={(e) => setMentionsLegales(e.target.value)} placeholder="Colle ou écris ici tes mentions légales, CGV et politique de confidentialité" />
@@ -1704,7 +2031,7 @@ function AdminPanel({ config, villes, reservations, produits, onSaveConfig, onAd
             <ShoppingBag size={16} /> Boutique — Articles
           </h3>
           <button
-            onClick={() => setProduitEnEdition({ id: uid(), titre: "", categorie: "", prix: 10, badge: "", resume: "", description: "", image: "", lienPaypal: "" })}
+            onClick={() => setProduitEnEdition({ id: uid(), titre: "", categorie: "", prix: 10, badge: "", resume: "", description: "", images: [], lienPaypal: "" })}
             className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full"
             style={{ background: "#E8B94A", color: "#2B2118" }}
           >
@@ -1809,6 +2136,47 @@ function AdminPanel({ config, villes, reservations, produits, onSaveConfig, onAd
   <button onClick={() => onSupprimerReservation(r.id)} className="text-xs underline" style={{ color: "#B5744A" }}>Supprimer</button>
 )}
  </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-2xl border p-6" style={{ background: "#FBF3E3", borderColor: "#DCC79C" }}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold flex items-center gap-2" style={{ color: "#2B4433" }}>
+            <ShoppingBag size={16} /> Commandes boutique ({commandes.length})
+          </h3>
+          {commandes.length > 0 && (
+            <button onClick={() => exportCommandesCSV(commandes)} className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full" style={{ background: "#2B4433", color: "#F7ECD8" }}>
+              <Download size={13} /> Exporter en CSV
+            </button>
+          )}
+          <button onClick={onToggleCorbeilleCommandes} className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg" style={{ background: "#DCC79C", color: "#2B4433" }}>
+            {voirCorbeilleCommandes ? "Retour à la liste" : "Voir la corbeille"}
+          </button>
+        </div>
+        <p className="text-xs mb-3" style={{ color: "#8A7A56" }}>
+          Une commande apparaît ici une fois que le client est revenu sur le site après son
+          paiement PayPal. Pense à vérifier aussi tes notifications PayPal en cas de doute.
+        </p>
+        {commandes.length === 0 ? (
+          <p className="text-sm text-[#8A7A56] italic">Aucune commande pour l'instant.</p>
+        ) : (
+          <div className="space-y-2">
+            {commandes.filter((c) => (c.supprime || false) === voirCorbeilleCommandes).map((c) => (
+              <div key={c.id} className="text-sm rounded-lg px-3 py-2 flex flex-wrap gap-x-4 gap-y-1 border" style={{ borderColor: "#DCC79C" }}>
+                <span className="font-semibold" style={{ color: "#2B4433" }}>{c.nom}</span>
+                <span className="font-medium" style={{ color: "#5C4A3A" }}>{(c.articles || []).map((a) => `${a.titre} x${a.qte}`).join(", ")}</span>
+                <span className="font-medium" style={{ color: "#5C4A3A" }}>{formatPrix(c.total)}</span>
+                <span style={{ color: "#8A7A56" }}>{c.email}</span>
+                {c.tel && <span style={{ color: "#8A7A56" }}>{c.tel}</span>}
+                {c.adresse && <span style={{ color: "#8A7A56" }}>{c.adresse}</span>}
+                {voirCorbeilleCommandes ? (
+                  <button onClick={() => onRestaurerCommande(c.id)} className="text-xs underline" style={{ color: "#2B4433" }}>Restaurer</button>
+                ) : (
+                  <button onClick={() => onSupprimerCommande(c.id)} className="text-xs underline" style={{ color: "#B5744A" }}>Supprimer</button>
+                )}
+              </div>
             ))}
           </div>
         )}
