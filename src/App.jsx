@@ -1359,13 +1359,13 @@ function ProduitModal({ produit, onClose, onAjouter }) {
           <X size={16} />
         </button>
         <div
-          className="h-52 w-full overflow-hidden relative"
-          style={{ background: "#F3E3CB" }}
+          className="w-full overflow-hidden relative"
+          style={{ background: "#F3E3CB", height: "min(60vh, 420px)" }}
           onTouchStart={onTouchStart}
           onTouchEnd={onTouchEnd}
         >
           {images.length > 0 ? (
-            <img src={images[index]} alt={produit.titre} className="w-full h-full object-cover" />
+            <img src={images[index]} alt={produit.titre} className="w-full h-full object-contain" />
           ) : (
             <div className="w-full h-full flex items-center justify-center"><Sparkles size={32} style={{ color: "#DCC79C" }} /></div>
           )}
