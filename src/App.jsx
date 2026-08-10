@@ -132,11 +132,11 @@ const DEFAULT_CONFIG = {
   motAccueilBoutique:
     "Livrets, boîtes surprises et objets à glisser dans une poche, une chambre, une histoire.",
   messageAucunCreneau:
-    "Aucun créneau n'est ouvert pour le moment. Reviens un peu plus tard, un nouveau monde va s'ouvrir.",
+    "Aucun créneau n'est ouvert pour le moment. Revenez un peu plus tard, un nouveau monde va s'ouvrir.",
   noticeRetractation:
-    "Conformément à l'article L221-28 du Code de la consommation, le droit de rétractation ne s'applique pas aux prestations de loisirs fournies à une date déterminée. En confirmant, tu acceptes cette condition ainsi que nos conditions générales de vente.",
+    "Conformément à l'article L221-28 du Code de la consommation, le droit de rétractation ne s'applique pas aux prestations de loisirs fournies à une date déterminée. En confirmant, vous acceptez cette condition ainsi que nos conditions générales de vente.",
   noticeRetractationBoutique:
-    "Conformément aux articles L221-18 et suivants du Code de la consommation, tu disposes d'un délai de 14 jours à compter de la réception de ta commande pour exercer ton droit de rétractation, sans avoir à justifier de motif. En confirmant, tu acceptes cette condition ainsi que nos conditions générales de vente.",
+    "Conformément aux articles L221-18 et suivants du Code de la consommation, vous disposez d'un délai de 14 jours à compter de la réception de votre commande pour exercer votre droit de rétractation, sans avoir à justifier de motif. En confirmant, vous acceptez cette condition ainsi que nos conditions générales de vente.",
   mentionsLegales:
     "MENTIONS LÉGALES\n\nÉditeur du site : [Ton nom et prénom]\nStatut : [à compléter, ex. micro-entreprise]\nSIRET : [à compléter]\nAdresse : [à compléter]\nEmail : [à compléter]\nTéléphone : [à compléter]\n\n" +
     "CONDITIONS GÉNÉRALES DE VENTE — ATELIERS\n\nArticle 1 — Prix : les tarifs affichés sont ceux en vigueur au moment de la réservation.\n" +
@@ -148,9 +148,9 @@ const DEFAULT_CONFIG = {
     "CONDITIONS GÉNÉRALES DE VENTE — BOUTIQUE\n\nArticle 1 — Prix : les tarifs affichés sont ceux en vigueur au moment de la commande, frais de port [à compléter].\n" +
     "Article 2 — Commande : la commande est enregistrée dès réception du paiement.\n" +
     "Article 3 — Expédition : délai indicatif d'expédition [à compléter, ex. sous 5 à 10 jours ouvrés].\n" +
-    "Article 4 — Droit de rétractation : conformément aux articles L221-18 et suivants du Code de la consommation, tu disposes de 14 jours à compter de la réception de ta commande pour te rétracter, sans justification. L'article doit être retourné dans son état d'origine ; les frais de retour restent à la charge du client sauf mention contraire.\n" +
+    "Article 4 — Droit de rétractation : conformément aux articles L221-18 et suivants du Code de la consommation, vous disposez de 14 jours à compter de la réception de votre commande pour vous rétracter, sans justification. L'article doit être retourné dans son état d'origine ; les frais de retour restent à la charge du client sauf mention contraire.\n" +
     "Article 5 — Articles défectueux ou endommagés : contacte-nous à [email de contact] avec une photo de l'article concerné.\n\n" +
-    "POLITIQUE DE CONFIDENTIALITÉ\n\nLes informations recueillies (nom, email, téléphone, adresse, nombre d'enfants) servent uniquement à la gestion des réservations et commandes. Elles ne sont jamais transmises à des tiers, hormis le prestataire de paiement pour le règlement. Tu peux demander l'accès, la rectification ou la suppression de tes données à tout moment en écrivant à [email de contact].",
+    "POLITIQUE DE CONFIDENTIALITÉ\n\nLes informations recueillies (nom, email, téléphone, adresse, nombre d'enfants) servent uniquement à la gestion des réservations et commandes. Elles ne sont jamais transmises à des tiers, hormis le prestataire de paiement pour le règlement. Vous pouvez demander l'accès, la rectification ou la suppression de vos données à tout moment en écrivant à [email de contact].",
   faq: [
     { id: uid(), q: "Que faut-il prévoir pour l'atelier ?", r: "Une tenue confortable adaptée à la météo, et beaucoup de curiosité !" },
     { id: uid(), q: "Les parents peuvent-ils rester ?", r: "Oui, vous êtes les bienvenus pour observer ou participer, selon votre préférence." },
@@ -717,7 +717,7 @@ const restaurerReservation = async (id) => {
 
   const confirmBooking = async () => {
     if (!form.nom.trim() || !form.email.trim()) {
-      setError("Merci de renseigner au moins ton nom et ton email.");
+      setError("Merci de renseigner au moins votre nom et votre email.");
       return;
     }
     if (form.piege) {
@@ -1037,7 +1037,7 @@ function MerciPaiement({ onRetour }) {
       </div>
       <h2 className="lmc-display text-4xl mb-2" style={{ color: "#2B4433" }}>Merci !</h2>
       <p className="text-[#5C4A3A] mb-6 max-w-md mx-auto font-medium">
-        Ton paiement a bien été pris en compte. On a hâte de vous accueillir !
+        Votre paiement a bien été pris en compte. On a hâte de vous accueillir !
       </p> <p className="text-xs mt-4" style={{ color: "#5C4A3A" }}>
   Un email de confirmation vous a été envoyé. Pensez à vérifier vos courriers indésirables/spams si vous ne le voyez pas d'ici quelques minutes.
 </p>
@@ -1055,9 +1055,9 @@ function MerciCommande({ onRetour }) {
       <div className="w-16 h-16 rounded-full text-[#F7ECD8] flex items-center justify-center mx-auto mb-6" style={{ background: "#2B4433" }}>
         <Check size={28} />
       </div>
-      <h2 className="lmc-display text-4xl mb-2" style={{ color: "#2B4433" }}>Merci pour ta commande !</h2>
+      <h2 className="lmc-display text-4xl mb-2" style={{ color: "#2B4433" }}>Merci pour votre commande !</h2>
       <p className="text-[#5C4A3A] mb-6 max-w-md mx-auto font-medium">
-        Ton paiement a bien été pris en compte, ta commande est enregistrée et sera préparée avec soin.
+        Votre paiement a bien été pris en compte, votre commande est enregistrée et sera préparée avec soin.
       </p>
       <p className="text-xs mt-4" style={{ color: "#5C4A3A" }}>
         Un email de confirmation vous a été envoyé. Pensez à vérifier vos courriers indésirables/spams si vous ne le voyez pas d'ici quelques minutes.
@@ -1181,15 +1181,15 @@ function AvisSection({ avisPublics, onEnvoyerAvis }) {
 
       {envoye ? (
         <p className="text-sm font-medium rounded-xl px-4 py-3" style={{ background: "#FBF3E3", color: "#2B4433" }}>
-          Merci ! Ton avis sera visible sur le site une fois validé. 🌿
+          Merci ! Votre avis sera visible sur le site une fois validé. 🌿
         </p>
       ) : ouvert ? (
         <div className="rounded-2xl border p-5" style={{ borderColor: "#DCC79C", background: "#FBF3E3" }}>
           <p className="text-xs mb-3" style={{ color: "#8A7A56" }}>
-            Ce que ton enfant a dit après l'atelier (ou ton propre avis, si tu préfères).
+            Ce que votre enfant a dit après l'atelier (ou votre propre avis, si vous préférez).
           </p>
           <div className="space-y-3">
-            <Field label="Prénom (de l'enfant, ou le tien)"><input className="lmc-input" value={prenom} onChange={(e) => setPrenom(e.target.value)} placeholder="Ex. Emma" /></Field>
+            <Field label="Prénom (de l'enfant, ou le vôtre)"><input className="lmc-input" value={prenom} onChange={(e) => setPrenom(e.target.value)} placeholder="Ex. Emma" /></Field>
             <Field label="Âge (optionnel)"><input className="lmc-input" value={age} onChange={(e) => setAge(e.target.value)} placeholder="Ex. 6 ans" /></Field>
             <Field label="Le petit mot"><textarea className="lmc-input" rows={3} value={texte} onChange={(e) => setTexte(e.target.value)} placeholder="Ce qu'il/elle a préféré, ce qu'il/elle a ressenti…" /></Field>
           </div>
@@ -1227,12 +1227,12 @@ function ParentFlow({
           <Check size={28} />
         </div>
         <h2 className="lmc-display text-4xl mb-2" style={{ color: "#2B4433" }}>
-          {enAttente ? "Tu es sur la liste d'attente" : "Réservation enregistrée"}
+          {enAttente ? "Vous êtes sur la liste d'attente" : "Réservation enregistrée"}
         </h2>
         <p className="text-[#5C4A3A] mb-6 max-w-md mx-auto font-medium">
           {enAttente
-            ? `On te recontacte à ${form.email} si une place se libère pour le ${selectedSession?.date} à ${selectedSession?.heure} (${selectedVille?.nom}).`
-            : `Une place t'attend à ${selectedSession?.date} à ${selectedSession?.heure} (${selectedVille?.nom}). Un e-mail de confirmation sera envoyé à ${form.email}.`}
+            ? `Nous vous recontacterons à ${form.email} si une place se libère pour le ${selectedSession?.date} à ${selectedSession?.heure} (${selectedVille?.nom}).`
+            : `Une place vous attend à ${selectedSession?.date} à ${selectedSession?.heure} (${selectedVille?.nom}). Un e-mail de confirmation sera envoyé à ${form.email}.`}
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
           {!enAttente && config.lienPaiement && (
@@ -1281,8 +1281,8 @@ function ParentFlow({
         </div>
 
         <div className="space-y-4">
-          <Field label="Ton nom"><input value={form.nom} onChange={(e) => setForm({ ...form, nom: e.target.value })} className="lmc-input" placeholder="Prénom et nom" /></Field>
-          <Field label="Email"><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="lmc-input" placeholder="ton@email.fr" /></Field>
+          <Field label="Votre nom"><input value={form.nom} onChange={(e) => setForm({ ...form, nom: e.target.value })} className="lmc-input" placeholder="Prénom et nom" /></Field>
+          <Field label="Email"><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="lmc-input" placeholder="votre@email.fr" /></Field>
           <Field label="Téléphone (optionnel)"><input value={form.tel} onChange={(e) => setForm({ ...form, tel: e.target.value })} className="lmc-input" placeholder="06 12 34 56 78" /></Field>
           {!complet && (
             <Field label="Nombre d'enfants">
@@ -1364,7 +1364,7 @@ function ParentFlow({
           </>
         ) : (
           <>
-            <SectionTitle>Choisis ta ville ou village</SectionTitle>
+            <SectionTitle>Choisissez votre ville ou village</SectionTitle>
             {villesAvecSessions.length === 0 ? (
               <p className="text-[#8A7A56] font-medium">{config.messageAucunCreneau}</p>
             ) : (
@@ -1473,7 +1473,7 @@ function BoutiquePage({ produits, onOpenProduit, onAjouterPanier }) {
       <SectionTitle icon={<ShoppingBag size={20} style={{ color: "#E8B94A" }} />}>La boutique</SectionTitle>
 
       {produits.length === 0 ? (
-        <p className="text-[#8A7A56] font-medium">La boutique arrive bientôt — reviens un peu plus tard.</p>
+        <p className="text-[#8A7A56] font-medium">La boutique arrive bientôt — revenez un peu plus tard.</p>
       ) : (
         <>
           <div className="flex flex-wrap gap-2 mb-6">
@@ -1647,12 +1647,12 @@ function PanierDrawer({ ouvert, panier, onFermer, onChangerQte, onRetirer, onCom
         style={{ width: "min(380px, 92vw)", background: "#FBF3E3", transform: ouvert ? "translateX(0)" : "translateX(105%)" }}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "#DCC79C" }}>
-          <h3 className="lmc-display text-2xl" style={{ color: "#2B4433" }}>Ton panier</h3>
+          <h3 className="lmc-display text-2xl" style={{ color: "#2B4433" }}>Votre panier</h3>
           <button onClick={onFermer} aria-label="Fermer le panier"><X size={18} style={{ color: "#5C4A3A" }} /></button>
         </div>
         <div className="flex-1 overflow-y-auto px-5 py-4">
           {panier.length === 0 ? (
-            <p className="text-sm" style={{ color: "#8A7A56" }}>Ton panier est vide pour l'instant.</p>
+            <p className="text-sm" style={{ color: "#8A7A56" }}>Votre panier est vide pour l'instant.</p>
           ) : (
             <div className="space-y-4">
               {panier.map((i) => (
@@ -1701,7 +1701,7 @@ function CommandeModal({ panier, noticeRetractation, onClose }) {
 
   const valider = () => {
     if (!form.nom.trim() || !form.email.trim() || !form.adresse.trim()) {
-      setErreur("Merci de renseigner au moins ton nom, ton email et ton adresse d'envoi.");
+      setErreur("Merci de renseigner au moins votre nom, votre email et votre adresse d'envoi.");
       return;
     }
     setErreur("");
@@ -1724,11 +1724,11 @@ function CommandeModal({ panier, noticeRetractation, onClose }) {
 
         {etape === "formulaire" ? (
           <>
-            <h3 className="lmc-display text-2xl mb-1" style={{ color: "#2B4433" }}>Tes coordonnées</h3>
-            <p className="text-xs mb-4" style={{ color: "#8A7A56" }}>Pour t'envoyer ta commande et te confirmer sa réception.</p>
+            <h3 className="lmc-display text-2xl mb-1" style={{ color: "#2B4433" }}>Vos coordonnées</h3>
+            <p className="text-xs mb-4" style={{ color: "#8A7A56" }}>Pour vous envoyer votre commande et vous confirmer sa réception.</p>
             <div className="space-y-3">
-              <Field label="Ton nom"><input className="lmc-input" value={form.nom} onChange={(e) => setForm({ ...form, nom: e.target.value })} placeholder="Prénom et nom" /></Field>
-              <Field label="Email"><input type="email" className="lmc-input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="ton@email.fr" /></Field>
+              <Field label="Votre nom"><input className="lmc-input" value={form.nom} onChange={(e) => setForm({ ...form, nom: e.target.value })} placeholder="Prénom et nom" /></Field>
+              <Field label="Email"><input type="email" className="lmc-input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="votre@email.fr" /></Field>
               <Field label="Téléphone (optionnel)"><input className="lmc-input" value={form.tel} onChange={(e) => setForm({ ...form, tel: e.target.value })} placeholder="06 12 34 56 78" /></Field>
               <Field label="Adresse d'envoi"><textarea className="lmc-input" rows={3} value={form.adresse} onChange={(e) => setForm({ ...form, adresse: e.target.value })} placeholder="Numéro, rue, code postal, ville" /></Field>
             </div>
@@ -1742,7 +1742,7 @@ function CommandeModal({ panier, noticeRetractation, onClose }) {
           <>
             <h3 className="lmc-display text-2xl mb-1" style={{ color: "#2B4433" }}>Paiement</h3>
             <p className="text-xs mb-4" style={{ color: "#8A7A56" }}>
-              Règle chaque article ci-dessous. Une fois le paiement effectué, tu seras redirigé·e vers le site pour la confirmation.
+              Réglez chaque article ci-dessous. Une fois le paiement effectué, vous serez redirigé·e vers le site pour la confirmation.
             </p>
             <div className="space-y-2">
               {panier.map((i) =>
