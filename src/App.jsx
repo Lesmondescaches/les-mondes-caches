@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   MapPin, Sparkles, Settings, X, Plus, Trash2, ArrowLeft, Check, Users, Calendar,
   Clock, Coins, Loader2, Leaf, Mail, Phone, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Download,
-  CalendarPlus, Star, ScrollText, Lock, Upload, ShoppingBag, Minus, Tag
+  CalendarPlus, Star, ScrollText, Lock, Upload, ShoppingBag, Minus, Tag, Compass, BookOpen, Gift
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 
@@ -97,7 +97,8 @@ const formatPrix = (n) => `${Number(n).toFixed(2).replace(".", ",")} €`;
 const getImages = (p) => (p.images && p.images.length ? p.images : p.image ? [p.image] : []);
 
 const DEFAULT_CONFIG = {
-  titre: "L'Atelier des Mondes Cachés",
+  eyebrowAtelier: "Atelier immersif",
+  titre: "Une histoire à vivre en famille",
   description:
     "Un temps suspendu pour explorer, imaginer et découvrir — chez vous ou près de chez vous.",
   prix: 25,
@@ -115,8 +116,21 @@ const DEFAULT_CONFIG = {
   emailjsTemplateCommandeAdmin: "",
   conditions:
     "Annulation possible jusqu'à 48h avant l'atelier. En cas de pluie, l'atelier est maintenu en intérieur ou reporté selon les cas.",
+  reglementAtelier:
+    "Pour préserver la magie de l'histoire et du décor, les photos et vidéos ne sont pas autorisées pendant l'atelier. Merci de mettre votre téléphone en silencieux le temps de l'immersion.",
   motAccueil:
     "Ici commence chaque histoire : une tente plantée sous les arbres, et un monde qui s'entrouvre.",
+  etapeAvantTitre: "Avant",
+  etapeAvant:
+    "On se retrouve, on écoute les premières consignes, et on découvre le nouveau monde ensemble.",
+  etapePendantTitre: "Pendant",
+  etapePendant:
+    "L'histoire se vit, se joue, se chuchote — chaque enfant devient acteur de son monde.",
+  etapeApresTitre: "Après",
+  etapeApres:
+    "Chaque explorateur repart avec un petit souvenir de son passage dans ce monde.",
+  motAccueilBoutique:
+    "Livrets, boîtes surprises et objets à glisser dans une poche, une chambre, une histoire.",
   messageAucunCreneau:
     "Aucun créneau n'est ouvert pour le moment. Reviens un peu plus tard, un nouveau monde va s'ouvrir.",
   noticeRetractation:
@@ -137,7 +151,6 @@ const DEFAULT_CONFIG = {
     "Article 4 — Droit de rétractation : conformément aux articles L221-18 et suivants du Code de la consommation, tu disposes de 14 jours à compter de la réception de ta commande pour te rétracter, sans justification. L'article doit être retourné dans son état d'origine ; les frais de retour restent à la charge du client sauf mention contraire.\n" +
     "Article 5 — Articles défectueux ou endommagés : contacte-nous à [email de contact] avec une photo de l'article concerné.\n\n" +
     "POLITIQUE DE CONFIDENTIALITÉ\n\nLes informations recueillies (nom, email, téléphone, adresse, nombre d'enfants) servent uniquement à la gestion des réservations et commandes. Elles ne sont jamais transmises à des tiers, hormis le prestataire de paiement pour le règlement. Tu peux demander l'accès, la rectification ou la suppression de tes données à tout moment en écrivant à [email de contact].",
-  temoignages: [],
   faq: [
     { id: uid(), q: "Que faut-il prévoir pour l'atelier ?", r: "Une tenue confortable adaptée à la météo, et beaucoup de curiosité !" },
     { id: uid(), q: "Les parents peuvent-ils rester ?", r: "Oui, vous êtes les bienvenus pour observer ou participer, selon votre préférence." },
@@ -195,6 +208,32 @@ function MotAccueil({ texte }) {
       <p className="lmc-display text-3xl sm:text-4xl leading-snug max-w-xl mx-auto" style={{ color: "#2B4433" }}>
         {texte}
       </p>
+    </div>
+  );
+}
+
+function EtapesAtelier({ avantTitre, avant, pendantTitre, pendant, apresTitre, apres }) {
+  if (!avant && !pendant && !apres) return null;
+  const etapes = [
+    { icon: Compass, label: avantTitre || "Avant", texte: avant },
+    { icon: BookOpen, label: pendantTitre || "Pendant", texte: pendant },
+    { icon: Gift, label: apresTitre || "Après", texte: apres },
+  ].filter((e) => e.texte);
+  if (etapes.length === 0) return null;
+  return (
+    <div className="mb-10">
+      <h3 className="lmc-display text-3xl mb-4 text-center" style={{ color: "#2B4433" }}>Comment se déroule l'atelier</h3>
+      <div className="grid sm:grid-cols-3 gap-4">
+        {etapes.map((e, i) => (
+          <div key={i} className="rounded-2xl border p-5 text-center" style={{ borderColor: "#DCC79C", background: "#FBF3E3" }}>
+            <div className="w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-3" style={{ background: "#2B4433", color: "#F7ECD8" }}>
+              <e.icon size={18} />
+            </div>
+            <p className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: "#E8B94A" }}>{e.label}</p>
+            <p className="text-sm leading-relaxed" style={{ color: "#5C4A3A" }}>{e.texte}</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -281,6 +320,8 @@ const [voirCorbeille, setVoirCorbeille] = useState(false);
   const [commandeModalOuvert, setCommandeModalOuvert] = useState(false);
   const [commandes, setCommandes] = useState([]);
   const [voirCorbeilleCommandes, setVoirCorbeilleCommandes] = useState(false);
+  const [avisPublics, setAvisPublics] = useState([]);
+  const [avisAdmin, setAvisAdmin] = useState([]);
 
   const [view, setView] = useState("parent");
   const [session, setSession] = useState(null);
@@ -394,9 +435,67 @@ const restaurerReservation = async (id) => {
     }
   };
 
+  const loadAvisAdmin = useCallback(async () => {
+    try {
+      const { data, error: err } = await supabase
+        .from("avis")
+        .select("*")
+        .eq("supprime", false)
+        .order("cree_le", { ascending: false });
+      if (err) throw err;
+      setAvisAdmin(data || []);
+    } catch (e) {
+      console.error("Erreur de chargement des avis (admin):", e);
+    }
+  }, []);
+  const validerAvis = async (id) => {
+    try {
+      const { error: err } = await supabase.from("avis").update({ valide: true }).eq("id", id);
+      if (err) throw err;
+      loadAvisAdmin();
+      loadAvisPublics();
+    } catch (e) {
+      console.error("Erreur validation avis:", e);
+    }
+  };
+  const depublierAvis = async (id) => {
+    try {
+      const { error: err } = await supabase.from("avis").update({ valide: false }).eq("id", id);
+      if (err) throw err;
+      loadAvisAdmin();
+      loadAvisPublics();
+    } catch (e) {
+      console.error("Erreur dépublication avis:", e);
+    }
+  };
+  const supprimerAvis = async (id) => {
+    try {
+      const { error: err } = await supabase.from("avis").update({ supprime: true }).eq("id", id);
+      if (err) throw err;
+      loadAvisAdmin();
+      loadAvisPublics();
+    } catch (e) {
+      console.error("Erreur suppression avis:", e);
+    }
+  };
+  const envoyerAvis = async (a) => {
+    try {
+      const { error: err } = await supabase.from("avis").insert({
+        prenom: a.prenom,
+        age: a.age || null,
+        texte: a.texte,
+      });
+      if (err) throw err;
+      return true;
+    } catch (e) {
+      console.error("Erreur envoi avis:", e);
+      return false;
+    }
+  };
+
   useEffect(() => {
-    if (view === "admin" && estConnecte) { loadReservations(); loadCommandes(); }
-  }, [view, estConnecte, loadReservations, loadCommandes]);
+    if (view === "admin" && estConnecte) { loadReservations(); loadCommandes(); loadAvisAdmin(); }
+  }, [view, estConnecte, loadReservations, loadCommandes, loadAvisAdmin]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -417,6 +516,25 @@ const restaurerReservation = async (id) => {
       setLoading(false);
     }
   }, []);
+
+  const loadAvisPublics = useCallback(async () => {
+    try {
+      const { data, error: err } = await supabase
+        .from("avis")
+        .select("*")
+        .eq("valide", true)
+        .eq("supprime", false)
+        .order("cree_le", { ascending: false });
+      if (err) throw err;
+      setAvisPublics(data || []);
+    } catch (e) {
+      console.error("Erreur de chargement des avis:", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAvisPublics();
+  }, [loadAvisPublics]);
 
   useEffect(() => {
     load();
@@ -733,28 +851,42 @@ const restaurerReservation = async (id) => {
             )}
           </div>
           <h1 className="lmc-display text-6xl sm:text-7xl leading-none mb-2" style={{ color: "#F7ECD8" }}>Les Mondes Cachés</h1>
-          <div className="flex items-center gap-2 text-[#E8B94A] text-xs tracking-[0.2em] uppercase mb-5">
-            <Sparkles size={13} /><span>Ateliers pour petits explorateurs</span><Sparkles size={13} />
-          </div>
-          <p className="lmc-body font-semibold text-lg sm:text-xl text-[#F7ECD8] mb-1">{config.titre}</p>
-          <p className="lmc-story text-[#CFC6E8] text-base sm:text-lg max-w-md leading-relaxed mb-5">{config.description}</p>
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            {config.ageRange && (
-              <span className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full" style={{ background: "rgba(247,236,216,0.12)", color: "#F7ECD8", border: "1px solid rgba(232,185,74,0.4)" }}>
-                <Users size={12} /> {config.ageRange}
-              </span>
-            )}
-            {config.duree && (
-              <span className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full" style={{ background: "rgba(247,236,216,0.12)", color: "#F7ECD8", border: "1px solid rgba(232,185,74,0.4)" }}>
-                <Clock size={12} /> {config.duree}
-              </span>
-            )}
-            {config.prix ? (
-              <span className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full" style={{ background: "rgba(247,236,216,0.12)", color: "#F7ECD8", border: "1px solid rgba(232,185,74,0.4)" }}>
-                <Coins size={12} /> {config.prix} € / enfant
-              </span>
-            ) : null}
-          </div>
+
+          {view === "boutique" ? (
+            <>
+              <div className="flex items-center gap-2 text-xs font-bold tracking-[0.2em] uppercase mb-5" style={{ color: "#F3D089" }}>
+                <Sparkles size={13} /><span>La boutique</span><Sparkles size={13} />
+              </div>
+              <p className="lmc-story text-[#CFC6E8] text-base sm:text-lg max-w-md leading-relaxed mb-5">
+                {config.motAccueilBoutique}
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 text-xs font-bold tracking-[0.2em] uppercase mb-5" style={{ color: "#F3D089" }}>
+                <Sparkles size={13} /><span>{config.eyebrowAtelier}</span><Sparkles size={13} />
+              </div>
+              <p className="lmc-body font-semibold text-lg sm:text-xl text-[#F7ECD8] mb-1">{config.titre}</p>
+              <p className="lmc-story text-[#CFC6E8] text-base sm:text-lg max-w-md leading-relaxed mb-5">{config.description}</p>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                {config.ageRange && (
+                  <span className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full" style={{ background: "rgba(247,236,216,0.12)", color: "#F7ECD8", border: "1px solid rgba(232,185,74,0.4)" }}>
+                    <Users size={12} /> {config.ageRange}
+                  </span>
+                )}
+                {config.duree && (
+                  <span className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full" style={{ background: "rgba(247,236,216,0.12)", color: "#F7ECD8", border: "1px solid rgba(232,185,74,0.4)" }}>
+                    <Clock size={12} /> {config.duree}
+                  </span>
+                )}
+                {config.prix ? (
+                  <span className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full" style={{ background: "rgba(247,236,216,0.12)", color: "#F7ECD8", border: "1px solid rgba(232,185,74,0.4)" }}>
+                    <Coins size={12} /> {config.prix} € / enfant
+                  </span>
+                ) : null}
+              </div>
+            </>
+          )}
 
           {(view === "parent" || view === "boutique") && (
             <div className="flex items-center gap-2 mt-6">
@@ -813,6 +945,10 @@ onSupprimerCommande={supprimerCommande}
 onRestaurerCommande={restaurerCommande}
 voirCorbeilleCommandes={voirCorbeilleCommandes}
 onToggleCorbeilleCommandes={() => setVoirCorbeilleCommandes(!voirCorbeilleCommandes)}
+avisAdmin={avisAdmin}
+onValiderAvis={validerAvis}
+onDepublierAvis={depublierAvis}
+onSupprimerAvis={supprimerAvis}
 />
         ) : view === "legal" ? (
           <LegalPage texte={config.mentionsLegales} onBack={() => setView("parent")} />
@@ -830,6 +966,7 @@ onToggleCorbeilleCommandes={() => setVoirCorbeilleCommandes(!voirCorbeilleComman
             form={form} setForm={setForm} saving={saving} openFaq={openFaq} setOpenFaq={setOpenFaq}
             onSelectVille={setSelectedVille} onStartBooking={startBooking} onConfirm={confirmBooking}
             onReset={resetParcours} onBack={() => setStep("choix")}
+            avisPublics={avisPublics} onEnvoyerAvis={envoyerAvis}
           />
         )}
       </main>
@@ -1002,17 +1139,82 @@ function RedirectionPaiement({ lien }) {
   );
 }
 
+function AvisSection({ avisPublics, onEnvoyerAvis }) {
+  const [ouvert, setOuvert] = useState(false);
+  const [prenom, setPrenom] = useState("");
+  const [age, setAge] = useState("");
+  const [texte, setTexte] = useState("");
+  const [envoi, setEnvoi] = useState(false);
+  const [envoye, setEnvoye] = useState(false);
+  const [erreur, setErreur] = useState("");
+
+  const soumettre = async () => {
+    if (!prenom.trim() || !texte.trim()) {
+      setErreur("Merci de renseigner au moins un prénom et un petit mot.");
+      return;
+    }
+    setErreur("");
+    setEnvoi(true);
+    const ok = await onEnvoyerAvis({ prenom: prenom.trim(), age: age.trim(), texte: texte.trim() });
+    setEnvoi(false);
+    if (ok) {
+      setEnvoye(true);
+      setPrenom(""); setAge(""); setTexte("");
+    } else {
+      setErreur("Une erreur est survenue, réessaie dans un instant.");
+    }
+  };
+
+  return (
+    <div>
+      {avisPublics.length > 0 && (
+        <div className="grid sm:grid-cols-2 gap-4 mb-6">
+          {avisPublics.map((a) => (
+            <div key={a.id} className="p-4 rounded-2xl relative" style={{ background: "#FBF3E3", border: "1px solid #DCC79C" }}>
+              <LeafCorner className="absolute top-1 right-1 opacity-60" />
+              <p className="text-sm italic" style={{ color: "#5C4A3A" }}>« {a.texte} »</p>
+              <p className="text-xs font-semibold mt-2" style={{ color: "#2B4433" }}>— {a.prenom}{a.age ? `, ${a.age}` : ""}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {envoye ? (
+        <p className="text-sm font-medium rounded-xl px-4 py-3" style={{ background: "#FBF3E3", color: "#2B4433" }}>
+          Merci ! Ton avis sera visible sur le site une fois validé. 🌿
+        </p>
+      ) : ouvert ? (
+        <div className="rounded-2xl border p-5" style={{ borderColor: "#DCC79C", background: "#FBF3E3" }}>
+          <p className="text-xs mb-3" style={{ color: "#8A7A56" }}>
+            Ce que ton enfant a dit après l'atelier (ou ton propre avis, si tu préfères).
+          </p>
+          <div className="space-y-3">
+            <Field label="Prénom (de l'enfant, ou le tien)"><input className="lmc-input" value={prenom} onChange={(e) => setPrenom(e.target.value)} placeholder="Ex. Emma" /></Field>
+            <Field label="Âge (optionnel)"><input className="lmc-input" value={age} onChange={(e) => setAge(e.target.value)} placeholder="Ex. 6 ans" /></Field>
+            <Field label="Le petit mot"><textarea className="lmc-input" rows={3} value={texte} onChange={(e) => setTexte(e.target.value)} placeholder="Ce qu'il/elle a préféré, ce qu'il/elle a ressenti…" /></Field>
+          </div>
+          {erreur && <p className="text-xs mt-2 font-medium" style={{ color: "#B5744A" }}>{erreur}</p>}
+          <div className="flex gap-2 mt-4">
+            <button onClick={() => setOuvert(false)} className="text-sm font-medium px-4 py-2 rounded-full border" style={{ borderColor: "#DCC79C", color: "#5C4A3A" }}>Annuler</button>
+            <button onClick={soumettre} disabled={envoi} className="text-sm font-semibold px-4 py-2 rounded-full disabled:opacity-60" style={{ background: "#2B4433", color: "#F7ECD8" }}>
+              {envoi ? "Envoi…" : "Envoyer"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => setOuvert(true)} className="text-sm font-semibold px-5 py-2.5 rounded-full" style={{ background: "#E8B94A", color: "#2B2118" }}>
+          Partager un avis
+        </button>
+      )}
+    </div>
+  );
+}
+
 function ParentFlow({
   config, villes, step, selectedVille, selectedSession, form, setForm, saving, openFaq, setOpenFaq,
-  onSelectVille, onStartBooking, onConfirm, onReset, onBack,
+  onSelectVille, onStartBooking, onConfirm, onReset, onBack, avisPublics, onEnvoyerAvis,
 }) {
   const villesAvecSessions = villes.filter((v) => v.sessions.length > 0);
-
-  const prochains = villes
-    .flatMap((v) => v.sessions.map((s) => ({ ...s, villeNom: v.nom, ville: v })))
-    .filter((s) => s.placesRestantes > 0)
-    .sort((a, b) => (a.date + a.heure).localeCompare(b.date + b.heure))
-    .slice(0, 3);
 
   if (step === "confirmation") {
     const icsUrl = selectedSession
@@ -1105,6 +1307,13 @@ function ParentFlow({
           </p>
         )}
 
+        {config.reglementAtelier && (
+          <div className="mt-4 flex items-start gap-2 text-xs rounded-lg px-3 py-2.5" style={{ background: "#F3E3CB", color: "#5C4A3A" }}>
+            <ScrollText size={14} className="mt-0.5 shrink-0" />
+            <p className="leading-relaxed">{config.reglementAtelier}</p>
+          </div>
+        )}
+
         <button onClick={onConfirm} disabled={saving} className="mt-4 w-full font-semibold py-3 rounded-full transition-colors disabled:opacity-60 flex items-center justify-center gap-2" style={{ background: complet ? "#8A5A26" : "#2B4433", color: "#F7ECD8" }}>
           {saving ? <Loader2 className="animate-spin" size={18} /> : null}
           {complet ? "Rejoindre la liste d'attente" : "Confirmer la réservation"}
@@ -1113,6 +1322,8 @@ function ParentFlow({
     );
   }
 
+  const villeUnique = villesAvecSessions.length === 1 ? villesAvecSessions[0] : null;
+
   return (
     <div>
       {/* Mot d'accueil, modifiable selon la saison */}
@@ -1120,55 +1331,18 @@ function ParentFlow({
         <MotAccueil texte={config.motAccueil} />
       </div>
 
-      {prochains.length > 0 && (
-        <div className="mb-10">
-          <div className="flex items-center gap-2 mb-4">
-            <Star size={16} className="text-[#E8B94A]" />
-            <h3 className="lmc-display text-3xl" style={{ color: "#2B4433" }}>Les prochains départs</h3>
-          </div>
-          <div className="grid sm:grid-cols-3 gap-4">
-            {prochains.map((s) => (
-              <button key={s.id} onClick={() => onStartBooking(s.ville, s)} className="text-left p-4 rounded-2xl border transition-all hover:shadow-md" style={{ background: "#2B4433", borderColor: "#2B4433", color: "#F7ECD8" }}>
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-[#E8B94A] mb-1"><MapPin size={12} /> {s.villeNom}</div>
-                <div className="flex items-center gap-1.5 text-sm font-medium"><Calendar size={13} /> {s.date}</div>
-                <div className="flex items-center gap-1.5 text-sm font-medium mb-1"><Clock size={13} /> {s.heure}</div>
-                <div className="text-xs" style={{ color: "#CFE0C8" }}>{s.placesRestantes} place(s) restante(s)</div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <VineDivider />
+      <EtapesAtelier
+        avantTitre={config.etapeAvantTitre} avant={config.etapeAvant}
+        pendantTitre={config.etapePendantTitre} pendant={config.etapePendant}
+        apresTitre={config.etapeApresTitre} apres={config.etapeApres}
+      />
 
       <div className="mt-6">
-        <SectionTitle>Choisis ta ville ou village</SectionTitle>
-        {villesAvecSessions.length === 0 ? (
-          <p className="text-[#8A7A56] font-medium">{config.messageAucunCreneau}</p>
-        ) : (
-          <div className="grid sm:grid-cols-2 gap-4">
-            {villesAvecSessions.map((ville) => {
-              const active = selectedVille?.id === ville.id;
-              const dispo = ville.sessions.filter((s) => s.placesRestantes > 0).length;
-              return (
-                <button key={ville.id} onClick={() => onSelectVille(active ? null : ville)} className="text-left p-5 rounded-2xl border-2 transition-all relative overflow-hidden" style={active ? { borderColor: "#2B4433", background: "#2B4433", color: "#F7ECD8" } : { borderColor: "#DCC79C", background: "#FBF3E3", color: "#2B4433" }}>
-                  <LeafCorner className="absolute bottom-1 left-1 opacity-70" flip />
-                  <div className="flex items-center gap-2 font-semibold"><MapPin size={16} /> {ville.nom}</div>
-                  <div className="text-sm mt-1 font-medium" style={{ color: active ? "#CFE0C8" : "#8A7A56" }}>
-                    {dispo > 0 ? `${dispo} créneau(x) disponible(s)` : "Complet — liste d'attente"}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {selectedVille && (
-          <div className="mt-8">
-            <VineDivider />
-            <h3 className="lmc-display text-3xl mt-2 mb-4" style={{ color: "#2B4433" }}>Créneaux à {selectedVille.nom}</h3>
+        {villeUnique ? (
+          <>
+            <SectionTitle>Créneaux à {villeUnique.nom}</SectionTitle>
             <div className="space-y-3">
-              {selectedVille.sessions.map((session) => {
+              {villeUnique.sessions.map((session) => {
                 const complet = session.placesRestantes <= 0;
                 return (
                   <div key={session.id} className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-xl border" style={{ borderColor: "#DCC79C", background: "#FBF3E3" }}>
@@ -1180,35 +1354,75 @@ function ParentFlow({
                       </div>
                       {session.note && <p className="text-xs italic mt-1" style={{ color: "#8A7A56" }}>{session.note}</p>}
                     </div>
-                    <button onClick={() => onStartBooking(selectedVille, session)} className="text-sm font-semibold px-4 py-2 rounded-full transition-colors" style={{ background: complet ? "#E4D4B8" : "#E8B94A", color: "#2B2118" }}>
+                    <button onClick={() => onStartBooking(villeUnique, session)} className="text-sm font-semibold px-4 py-2 rounded-full transition-colors" style={{ background: complet ? "#E4D4B8" : "#E8B94A", color: "#2B2118" }}>
                       {complet ? "Liste d'attente" : "Réserver"}
                     </button>
                   </div>
                 );
               })}
             </div>
-          </div>
+          </>
+        ) : (
+          <>
+            <SectionTitle>Choisis ta ville ou village</SectionTitle>
+            {villesAvecSessions.length === 0 ? (
+              <p className="text-[#8A7A56] font-medium">{config.messageAucunCreneau}</p>
+            ) : (
+              <div className="grid sm:grid-cols-2 gap-4">
+                {villesAvecSessions.map((ville) => {
+                  const active = selectedVille?.id === ville.id;
+                  const dispo = ville.sessions.filter((s) => s.placesRestantes > 0).length;
+                  return (
+                    <button key={ville.id} onClick={() => onSelectVille(active ? null : ville)} className="text-left p-5 rounded-2xl border-2 transition-all relative overflow-hidden" style={active ? { borderColor: "#2B4433", background: "#2B4433", color: "#F7ECD8" } : { borderColor: "#DCC79C", background: "#FBF3E3", color: "#2B4433" }}>
+                      <LeafCorner className="absolute bottom-1 left-1 opacity-70" flip />
+                      <div className="flex items-center gap-2 font-semibold"><MapPin size={16} /> {ville.nom}</div>
+                      <div className="text-sm mt-1 font-medium" style={{ color: active ? "#CFE0C8" : "#8A7A56" }}>
+                        {dispo > 0 ? `${dispo} créneau(x) disponible(s)` : "Complet — liste d'attente"}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {selectedVille && (
+              <div className="mt-8">
+                <VineDivider />
+                <h3 className="lmc-display text-3xl mt-2 mb-4" style={{ color: "#2B4433" }}>Créneaux à {selectedVille.nom}</h3>
+                <div className="space-y-3">
+                  {selectedVille.sessions.map((session) => {
+                    const complet = session.placesRestantes <= 0;
+                    return (
+                      <div key={session.id} className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-xl border" style={{ borderColor: "#DCC79C", background: "#FBF3E3" }}>
+                        <div>
+                          <div className="flex flex-wrap items-center gap-4 text-sm font-medium" style={{ color: "#2B4433" }}>
+                            <span className="flex items-center gap-1"><Calendar size={14} /> {session.date}</span>
+                            <span className="flex items-center gap-1"><Clock size={14} /> {session.heure}</span>
+                            <span className="flex items-center gap-1" style={{ color: complet ? "#B5744A" : "#8A7A56" }}><Users size={14} /> {complet ? "Complet" : `${session.placesRestantes} place(s)`}</span>
+                          </div>
+                          {session.note && <p className="text-xs italic mt-1" style={{ color: "#8A7A56" }}>{session.note}</p>}
+                        </div>
+                        <button onClick={() => onStartBooking(selectedVille, session)} className="text-sm font-semibold px-4 py-2 rounded-full transition-colors" style={{ background: complet ? "#E4D4B8" : "#E8B94A", color: "#2B2118" }}>
+                          {complet ? "Liste d'attente" : "Réserver"}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 
-      {config.temoignages?.length > 0 && (
-        <div className="mt-12">
-          <VineDivider />
-          <div className="flex items-center gap-2 mt-4 mb-4">
-            <Star size={16} className="text-[#E8B94A]" />
-            <h3 className="lmc-display text-3xl" style={{ color: "#2B4433" }}>Elles et ils y étaient</h3>
-          </div>
-          <div className="grid sm:grid-cols-2 gap-4">
-            {config.temoignages.map((t) => (
-              <div key={t.id} className="p-4 rounded-2xl relative" style={{ background: "#FBF3E3", border: "1px solid #DCC79C" }}>
-                <LeafCorner className="absolute top-1 right-1 opacity-60" />
-                <p className="text-sm italic" style={{ color: "#5C4A3A" }}>« {t.texte} »</p>
-                <p className="text-xs font-semibold mt-2" style={{ color: "#2B4433" }}>— {t.nom}</p>
-              </div>
-            ))}
-          </div>
+      <div className="mt-12">
+        <VineDivider />
+        <div className="flex items-center gap-2 mt-4 mb-4">
+          <Star size={16} className="text-[#E8B94A]" />
+          <h3 className="lmc-display text-3xl" style={{ color: "#2B4433" }}>Ce qu'ils en disent</h3>
         </div>
-      )}
+        <AvisSection avisPublics={avisPublics} onEnvoyerAvis={onEnvoyerAvis} />
+      </div>
 
       {config.faq?.length > 0 && (
         <div className="mt-12">
@@ -1704,8 +1918,10 @@ function AdminPanel({
   onSupprimerReservation, onRestaurerReservation, voirCorbeille, onToggleCorbeille,
   onSaveProduit, onRemoveProduit,
   onSupprimerCommande, onRestaurerCommande, voirCorbeilleCommandes, onToggleCorbeilleCommandes,
+  avisAdmin, onValiderAvis, onDepublierAvis, onSupprimerAvis,
 }) {
  
+  const [eyebrowAtelier, setEyebrowAtelier] = useState(config.eyebrowAtelier || "");
   const [titre, setTitre] = useState(config.titre);
   const [description, setDescription] = useState(config.description);
   const [prix, setPrix] = useState(config.prix);
@@ -1725,13 +1941,19 @@ function AdminPanel({
   const [emailjsTemplateCommandeAdmin, setEmailjsTemplateCommandeAdmin] = useState(config.emailjsTemplateCommandeAdmin || "");
   const [conditions, setConditions] = useState(config.conditions || "");
   const [motAccueil, setMotAccueil] = useState(config.motAccueil || "");
+  const [etapeAvantTitre, setEtapeAvantTitre] = useState(config.etapeAvantTitre || "");
+  const [etapeAvant, setEtapeAvant] = useState(config.etapeAvant || "");
+  const [etapePendantTitre, setEtapePendantTitre] = useState(config.etapePendantTitre || "");
+  const [etapePendant, setEtapePendant] = useState(config.etapePendant || "");
+  const [etapeApresTitre, setEtapeApresTitre] = useState(config.etapeApresTitre || "");
+  const [etapeApres, setEtapeApres] = useState(config.etapeApres || "");
+  const [motAccueilBoutique, setMotAccueilBoutique] = useState(config.motAccueilBoutique || "");
   const [messageAucunCreneau, setMessageAucunCreneau] = useState(config.messageAucunCreneau || "");
   const [noticeRetractation, setNoticeRetractation] = useState(config.noticeRetractation || "");
   const [noticeRetractationBoutique, setNoticeRetractationBoutique] = useState(config.noticeRetractationBoutique || "");
+  const [reglementAtelier, setReglementAtelier] = useState(config.reglementAtelier || "");
   const [mentionsLegales, setMentionsLegales] = useState(config.mentionsLegales || "");
-  const [temoignages, setTemoignages] = useState(config.temoignages || []);
   const [faq, setFaq] = useState(config.faq || []);
-  const [nouveauTemoin, setNouveauTemoin] = useState({ nom: "", texte: "" });
   const [nouvelleFaq, setNouvelleFaq] = useState({ q: "", r: "" });
   const [nouvelleVille, setNouvelleVille] = useState("");
   const [sessionForms, setSessionForms] = useState({});
@@ -1762,8 +1984,8 @@ function AdminPanel({
 
   const saveAll = (overrides = {}) => {
     onSaveConfig({
-      titre, description, prix: Number(prix) || 0, lienPaiement: lienPaiement.trim(), logoImage,
-      ageRange, duree, contactEmail, contactTel, conditions, motAccueil, messageAucunCreneau, noticeRetractation, noticeRetractationBoutique, mentionsLegales, temoignages, faq,
+      eyebrowAtelier, titre, description, prix: Number(prix) || 0, lienPaiement: lienPaiement.trim(), logoImage,
+      ageRange, duree, contactEmail, contactTel, conditions, motAccueil, etapeAvantTitre, etapeAvant, etapePendantTitre, etapePendant, etapeApresTitre, etapeApres, motAccueilBoutique, messageAucunCreneau, noticeRetractation, noticeRetractationBoutique, reglementAtelier, mentionsLegales, faq,
       emailjsServiceId: emailjsServiceId.trim(), emailjsPublicKey: emailjsPublicKey.trim(), emailjsTemplateParent: emailjsTemplateParent.trim(), emailjsTemplateAdmin: emailjsTemplateAdmin.trim(),
       emailjsTemplateCommandeParent: emailjsTemplateCommandeParent.trim(), emailjsTemplateCommandeAdmin: emailjsTemplateCommandeAdmin.trim(),
       ...overrides,
@@ -1822,18 +2044,6 @@ function AdminPanel({
     setSessionForms((prev) => ({ ...prev, [villeId]: { date: "", heure: "", places: "", note: "" } }));
   };
 
-  const addTemoin = () => {
-    if (!nouveauTemoin.nom.trim() || !nouveauTemoin.texte.trim()) return;
-    const next = [...temoignages, { id: uid(), ...nouveauTemoin }];
-    setTemoignages(next);
-    setNouveauTemoin({ nom: "", texte: "" });
-    saveAll({ temoignages: next });
-  };
-  const removeTemoin = (id) => {
-    const next = temoignages.filter((t) => t.id !== id);
-    setTemoignages(next);
-    saveAll({ temoignages: next });
-  };
   const addFaqItem = () => {
     if (!nouvelleFaq.q.trim() || !nouvelleFaq.r.trim()) return;
     const next = [...faq, { id: uid(), q: nouvelleFaq.q, r: nouvelleFaq.r }];
@@ -1915,6 +2125,7 @@ function AdminPanel({
       <section className="rounded-2xl border p-6 mb-6" style={{ background: "#FBF3E3", borderColor: "#DCC79C" }}>
         <h3 className="font-semibold mb-4" style={{ color: "#2B4433" }}>Informations générales</h3>
         <div className="space-y-4">
+          <Field label="Petit texte au-dessus du titre (bandeau)"><input className="lmc-input" value={eyebrowAtelier} onChange={(e) => setEyebrowAtelier(e.target.value)} placeholder="Ex. Atelier immersif" /></Field>
           <Field label="Nom de l'atelier"><input className="lmc-input" value={titre} onChange={(e) => setTitre(e.target.value)} /></Field>
           <Field label="Photo ou logo (dans la bulle en haut du site)">
             <div className="flex items-center gap-4">
@@ -1961,8 +2172,26 @@ function AdminPanel({
             changer, rends-toi directement là-bas.
           </p>
           <Field label="Conditions (annulation, météo…)"><textarea className="lmc-input" rows={2} value={conditions} onChange={(e) => setConditions(e.target.value)} /></Field>
-          <Field label="Mot d'accueil (modifiable selon la saison, l'humeur…)">
+          <Field label="Mot d'accueil de l'atelier (modifiable selon la saison, l'humeur…)">
             <textarea className="lmc-input" rows={2} value={motAccueil} onChange={(e) => setMotAccueil(e.target.value)} placeholder="Une phrase chaleureuse affichée sur la page d'accueil" />
+          </Field>
+          <p className="text-xs font-semibold" style={{ color: "#2B4433" }}>« Comment se déroule l'atelier » — reste volontairement suggestif, sans détailler l'histoire ou le décor</p>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <input className="lmc-input text-sm font-semibold" value={etapeAvantTitre} onChange={(e) => setEtapeAvantTitre(e.target.value)} placeholder="Titre (ex. Avant)" />
+              <Field label="Texte"><textarea className="lmc-input text-sm" rows={3} value={etapeAvant} onChange={(e) => setEtapeAvant(e.target.value)} /></Field>
+            </div>
+            <div className="space-y-1">
+              <input className="lmc-input text-sm font-semibold" value={etapePendantTitre} onChange={(e) => setEtapePendantTitre(e.target.value)} placeholder="Titre (ex. Pendant)" />
+              <Field label="Texte"><textarea className="lmc-input text-sm" rows={3} value={etapePendant} onChange={(e) => setEtapePendant(e.target.value)} /></Field>
+            </div>
+            <div className="space-y-1">
+              <input className="lmc-input text-sm font-semibold" value={etapeApresTitre} onChange={(e) => setEtapeApresTitre(e.target.value)} placeholder="Titre (ex. Après)" />
+              <Field label="Texte"><textarea className="lmc-input text-sm" rows={3} value={etapeApres} onChange={(e) => setEtapeApres(e.target.value)} /></Field>
+            </div>
+          </div>
+          <Field label="Mot d'accueil de la boutique">
+            <textarea className="lmc-input" rows={2} value={motAccueilBoutique} onChange={(e) => setMotAccueilBoutique(e.target.value)} placeholder="Une phrase affichée en haut de la boutique" />
           </Field>
           <Field label="Message affiché quand aucun créneau n'est ouvert">
             <textarea className="lmc-input" rows={2} value={messageAucunCreneau} onChange={(e) => setMessageAucunCreneau(e.target.value)} placeholder="Ex : Les Mondes Cachés arrivent bientôt, suis-moi pour ne rien manquer 🌿" />
@@ -2064,20 +2293,53 @@ function AdminPanel({
       )}
 
       <section className="rounded-2xl border p-6 mb-6" style={{ background: "#FBF3E3", borderColor: "#DCC79C" }}>
-        <h3 className="font-semibold mb-4" style={{ color: "#2B4433" }}>Témoignages</h3>
-        <div className="space-y-2 mb-4">
-          {temoignages.map((t) => (
-            <div key={t.id} className="flex items-center justify-between text-sm rounded-lg px-3 py-2" style={{ background: "#F3E3CB", color: "#2B4433" }}>
-              <span><strong>{t.nom}</strong> — {t.texte}</span>
-              <button onClick={() => removeTemoin(t.id)} className="text-[#B5744A] hover:text-[#8A4A26]"><Trash2 size={14} /></button>
-            </div>
-          ))}
-        </div>
-        <div className="grid sm:grid-cols-2 gap-2 mb-2">
-          <input className="lmc-input" placeholder="Nom du parent" value={nouveauTemoin.nom} onChange={(e) => setNouveauTemoin({ ...nouveauTemoin, nom: e.target.value })} />
-          <input className="lmc-input" placeholder="Ce qu'ils/elles ont dit" value={nouveauTemoin.texte} onChange={(e) => setNouveauTemoin({ ...nouveauTemoin, texte: e.target.value })} />
-        </div>
-        <button onClick={addTemoin} className="text-sm font-semibold px-4 py-2 rounded-full" style={{ background: "#E8B94A", color: "#2B2118" }}>Ajouter le témoignage</button>
+        <h3 className="font-semibold mb-2" style={{ color: "#2B4433" }}>Avis des familles</h3>
+        <p className="text-xs mb-4" style={{ color: "#8A7A56" }}>
+          Les parents peuvent partager un avis (celui de leur enfant, ou le leur) directement
+          depuis le site. Rien n'est visible publiquement tant que tu ne l'as pas validé ici.
+        </p>
+
+        <p className="text-xs font-semibold mb-2" style={{ color: "#2B4433" }}>En attente de validation</p>
+        {avisAdmin.filter((a) => !a.valide).length === 0 ? (
+          <p className="text-sm text-[#8A7A56] italic mb-4">Aucun avis en attente.</p>
+        ) : (
+          <div className="space-y-2 mb-4">
+            {avisAdmin.filter((a) => !a.valide).map((a) => (
+              <div key={a.id} className="text-sm rounded-lg px-3 py-2" style={{ background: "#F3E3CB", color: "#2B4433" }}>
+                <p>« {a.texte} » <span className="font-semibold">— {a.prenom}{a.age ? `, ${a.age}` : ""}</span></p>
+                <div className="flex items-center gap-3 mt-1.5">
+                  <button onClick={() => onValiderAvis(a.id)} className="text-xs font-semibold underline" style={{ color: "#2B4433" }}>Publier</button>
+                  <button onClick={() => onSupprimerAvis(a.id)} className="text-xs underline" style={{ color: "#B5744A" }}>Supprimer</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <p className="text-xs font-semibold mb-2" style={{ color: "#2B4433" }}>Publiés sur le site</p>
+        {avisAdmin.filter((a) => a.valide).length === 0 ? (
+          <p className="text-sm text-[#8A7A56] italic">Aucun avis publié pour l'instant.</p>
+        ) : (
+          <div className="space-y-2">
+            {avisAdmin.filter((a) => a.valide).map((a) => (
+              <div key={a.id} className="text-sm rounded-lg px-3 py-2" style={{ background: "#F3E3CB", color: "#2B4433" }}>
+                <p>« {a.texte} » <span className="font-semibold">— {a.prenom}{a.age ? `, ${a.age}` : ""}</span></p>
+                <div className="flex items-center gap-3 mt-1.5">
+                  <button onClick={() => onDepublierAvis(a.id)} className="text-xs font-semibold underline" style={{ color: "#8A5A26" }}>Retirer du site</button>
+                  <button onClick={() => onSupprimerAvis(a.id)} className="text-xs underline" style={{ color: "#B5744A" }}>Supprimer</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-2xl border p-6 mb-6" style={{ background: "#FBF3E3", borderColor: "#DCC79C" }}>
+        <h3 className="font-semibold mb-4" style={{ color: "#2B4433" }}>Règlement de l'atelier</h3>
+        <Field label="Mention affichée avant la confirmation d'une réservation (photos/vidéos, téléphones…)">
+          <textarea className="lmc-input" rows={3} value={reglementAtelier} onChange={(e) => setReglementAtelier(e.target.value)} placeholder="Ex : pas de photo/vidéo pendant l'atelier, téléphones en silencieux" />
+        </Field>
+        <button onClick={() => saveAll()} className="text-sm font-semibold px-5 py-2.5 rounded-full transition-colors mt-3" style={{ background: "#2B4433", color: "#F7ECD8" }}>Enregistrer</button>
       </section>
 
       <section className="rounded-2xl border p-6 mb-6" style={{ background: "#FBF3E3", borderColor: "#DCC79C" }}>
