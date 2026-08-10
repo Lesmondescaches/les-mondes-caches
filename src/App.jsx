@@ -486,10 +486,10 @@ const restaurerReservation = async (id) => {
         texte: a.texte,
       });
       if (err) throw err;
-      return true;
+      return { ok: true };
     } catch (e) {
       console.error("Erreur envoi avis:", e);
-      return false;
+      return { ok: false, message: e?.message || String(e) };
     }
   };
 
@@ -1155,13 +1155,13 @@ function AvisSection({ avisPublics, onEnvoyerAvis }) {
     }
     setErreur("");
     setEnvoi(true);
-    const ok = await onEnvoyerAvis({ prenom: prenom.trim(), age: age.trim(), texte: texte.trim() });
+    const resultat = await onEnvoyerAvis({ prenom: prenom.trim(), age: age.trim(), texte: texte.trim() });
     setEnvoi(false);
-    if (ok) {
+    if (resultat.ok) {
       setEnvoye(true);
       setPrenom(""); setAge(""); setTexte("");
     } else {
-      setErreur("Une erreur est survenue, réessaie dans un instant.");
+      setErreur(`Erreur technique (à montrer à l'administratrice) : ${resultat.message}`);
     }
   };
 
