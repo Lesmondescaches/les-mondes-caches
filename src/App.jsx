@@ -96,6 +96,7 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 const formatPrix = (n) => `${Number(n).toFixed(2).replace(".", ",")} €`;
 const getImages = (p) => (p.images && p.images.length ? p.images : p.image ? [p.image] : []);
 const stockLimite = (p) => p.stock !== undefined && p.stock !== null && p.stock !== "";
+const telephoneValide = (tel) => /^0\d{9}$/.test((tel || "").replace(/[\s.\-]/g, ""));
 const enRupture = (p) => stockLimite(p) && Number(p.stock) <= 0;
 
 const DEFAULT_CONFIG = {
@@ -115,6 +116,7 @@ const DEFAULT_CONFIG = {
   emailjsServiceId: "service_r1002kb",
   emailjsPublicKey: "feN2CqnAJEyty4ZgA",
   emailjsTemplateParent: "template_z09d89r",
+  emailjsTemplateListeAttente: "",
   emailjsTemplateAdmin: "template_z09d89r",
   emailjsTemplateCommandeParent: "",
   emailjsTemplateCommandeAdmin: "",
@@ -667,8 +669,9 @@ const restaurerReservation = async (id) => {
       statut: r.enAttente ? "Liste d'attente" : "Confirmée",
     };
     try {
-      if (config.emailjsTemplateParent) {
-        await window.emailjs.send(config.emailjsServiceId, config.emailjsTemplateParent, params, { publicKey: config.emailjsPublicKey });
+      const templateClient = r.enAttente && config.emailjsTemplateListeAttente ? config.emailjsTemplateListeAttente : config.emailjsTemplateParent;
+      if (templateClient) {
+        await window.emailjs.send(config.emailjsServiceId, templateClient, params, { publicKey: config.emailjsPublicKey });
       }
     } catch (e) {
       console.error("Erreur envoi email parent:", e);
@@ -803,6 +806,14 @@ const restaurerReservation = async (id) => {
     }
     if (!form.tel.trim()) {
       setError("Le téléphone est obligatoire, pour pouvoir vous transmettre le lieu exact de l'atelier.");
+      return;
+    }
+    if (!telephoneValide(form.tel)) {
+      setError("Le numéro de téléphone ne semble pas valide — merci de vérifier (10 chiffres, sans lettre).");
+      return;
+    }
+    if (selectedSession.placesRestantes > 0 && Number(form.nbEnfants || 1) > selectedSession.placesRestantes) {
+      setError(`Il ne reste que ${selectedSession.placesRestantes} place(s) pour ce créneau — merci de réduire le nombre d'enfants, ou de nous contacter directement.`);
       return;
     }
     if (form.piege) {
@@ -1378,7 +1389,21 @@ function ParentFlow({
         <div className="space-y-4">
           <Field label="Votre nom"><input value={form.nom} onChange={(e) => setForm({ ...form, nom: e.target.value })} className="lmc-input" placeholder="Prénom et nom" /></Field>
           <Field label="Email"><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="lmc-input" placeholder="votre@email.fr" /></Field>
-          <Field label="Téléphone"><input type="tel" value={form.tel} onChange={(e) => setForm({ ...form, tel: e.target.value })} className="lmc-input" placeholder="06 12 34 56 78" /></Field>
+          <Field label="Téléphone">
+            <input
+              type="tel"
+              value={form.tel}
+              onChange={(e) => setForm({ ...form, tel: e.target.value })}
+              className="lmc-input"
+              placeholder="06 12 34 56 78"
+              style={form.tel.trim() && !telephoneValide(form.tel) ? { borderColor: "#B5744A", boxShadow: "0 0 0 2px rgba(181,116,74,0.2)" } : undefined}
+            />
+            {form.tel.trim() && !telephoneValide(form.tel) && (
+              <p className="text-xs mt-1 font-medium" style={{ color: "#B5744A" }}>
+                Ce numéro ne semble pas valide (10 chiffres attendus, sans lettre).
+              </p>
+            )}
+          </Field>
           {!complet && (
             <Field label="Nombre d'enfants">
               <input type="number" min={1} max={selectedSession.placesRestantes} value={form.nbEnfants} onChange={(e) => setForm({ ...form, nbEnfants: e.target.value })} className="lmc-input" />
@@ -1406,6 +1431,12 @@ function ParentFlow({
           <div className="mt-4 flex items-start gap-2 text-xs rounded-lg px-3 py-2.5" style={{ background: "#F3E3CB", color: "#5C4A3A" }}>
             <ScrollText size={14} className="mt-0.5 shrink-0" />
             <p className="leading-relaxed">{config.reglementAtelier}</p>
+          </div>
+        )}
+
+        {!complet && (
+          <div className="mt-4 rounded-lg px-3 py-2.5 text-sm font-semibold text-center" style={{ background: "#F3D089", color: "#2B2118" }}>
+            Vous réservez pour {form.nbEnfants || 1} enfant{Number(form.nbEnfants) > 1 ? "s" : ""} — vérifiez ce nombre avant de confirmer.
           </div>
         )}
 
@@ -2183,6 +2214,7 @@ function AdminPanel({
   const [emailjsServiceId, setEmailjsServiceId] = useState(config.emailjsServiceId || "");
   const [emailjsPublicKey, setEmailjsPublicKey] = useState(config.emailjsPublicKey || "");
   const [emailjsTemplateParent, setEmailjsTemplateParent] = useState(config.emailjsTemplateParent || "");
+  const [emailjsTemplateListeAttente, setEmailjsTemplateListeAttente] = useState(config.emailjsTemplateListeAttente || "");
   const [emailjsTemplateAdmin, setEmailjsTemplateAdmin] = useState(config.emailjsTemplateAdmin || "");
   const [emailjsTemplateCommandeParent, setEmailjsTemplateCommandeParent] = useState(config.emailjsTemplateCommandeParent || "");
   const [emailjsTemplateCommandeAdmin, setEmailjsTemplateCommandeAdmin] = useState(config.emailjsTemplateCommandeAdmin || "");
@@ -2233,7 +2265,7 @@ function AdminPanel({
     onSaveConfig({
       eyebrowAtelier, titre, description, prix: Number(prix) || 0, lienPaiement: lienPaiement.trim(), logoImage,
       ageRange, duree, contactEmail, contactTel, paypalEmail: paypalEmail.trim(), fraisPort: Number(fraisPort) || 0, conditions, motAccueil, etapeAvantTitre, etapeAvant, etapePendantTitre, etapePendant, etapeApresTitre, etapeApres, motAccueilBoutique, messageAucunCreneau, noticeRetractation, noticeRetractationBoutique, reglementAtelier, mentionsLegales, faq,
-      emailjsServiceId: emailjsServiceId.trim(), emailjsPublicKey: emailjsPublicKey.trim(), emailjsTemplateParent: emailjsTemplateParent.trim(), emailjsTemplateAdmin: emailjsTemplateAdmin.trim(),
+      emailjsServiceId: emailjsServiceId.trim(), emailjsPublicKey: emailjsPublicKey.trim(), emailjsTemplateParent: emailjsTemplateParent.trim(), emailjsTemplateListeAttente: emailjsTemplateListeAttente.trim(), emailjsTemplateAdmin: emailjsTemplateAdmin.trim(),
       emailjsTemplateCommandeParent: emailjsTemplateCommandeParent.trim(), emailjsTemplateCommandeAdmin: emailjsTemplateCommandeAdmin.trim(),
       ...overrides,
     });
@@ -2353,9 +2385,12 @@ function AdminPanel({
           </div>
           <p className="text-xs font-semibold" style={{ color: "#2B4433" }}>Ateliers</p>
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Template ID (email au parent)"><input className="lmc-input" value={emailjsTemplateParent} onChange={(e) => setEmailjsTemplateParent(e.target.value)} placeholder="template_xxxxx" /></Field>
+            <Field label="Template ID (email au parent — réservation confirmée)"><input className="lmc-input" value={emailjsTemplateParent} onChange={(e) => setEmailjsTemplateParent(e.target.value)} placeholder="template_xxxxx" /></Field>
             <Field label="Template ID (email à toi)"><input className="lmc-input" value={emailjsTemplateAdmin} onChange={(e) => setEmailjsTemplateAdmin(e.target.value)} placeholder="template_xxxxx" /></Field>
           </div>
+          <Field label="Template ID (email au parent — liste d'attente, laisser vide pour réutiliser le template ci-dessus)">
+            <input className="lmc-input" value={emailjsTemplateListeAttente} onChange={(e) => setEmailjsTemplateListeAttente(e.target.value)} placeholder="template_xxxxx" />
+          </Field>
           <p className="text-xs font-semibold" style={{ color: "#2B4433" }}>Boutique</p>
           <div className="grid grid-cols-2 gap-4">
             <Field label="Template ID (email au client)"><input className="lmc-input" value={emailjsTemplateCommandeParent} onChange={(e) => setEmailjsTemplateCommandeParent(e.target.value)} placeholder="template_xxxxx" /></Field>
