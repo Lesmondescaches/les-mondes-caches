@@ -1818,6 +1818,9 @@ function CommandeModal({ panier, fraisPort, noticeRetractation, paypalEmail, onC
     champ("upload", "1");
     champ("business", paypalEmail);
     champ("currency_code", "EUR");
+    champ("return", `${window.location.origin}/?commande=1`);
+    champ("cancel_return", `${window.location.origin}/`);
+    champ("rm", "1");
     panier.forEach((item, idx) => {
       const n = idx + 1;
       champ(`item_name_${n}`, item.titre);
