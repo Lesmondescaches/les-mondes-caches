@@ -1100,8 +1100,16 @@ onSupprimerAvis={supprimerAvis}
         <span>Les Mondes Cachés — un atelier à la fois, un monde différent à chaque fois.</span>
         {(config.contactEmail || config.contactTel) && (
           <div className="flex items-center gap-4 mt-1">
-            {config.contactEmail && <span className="flex items-center gap-1"><Mail size={12} /> {config.contactEmail}</span>}
-            {config.contactTel && <span className="flex items-center gap-1"><Phone size={12} /> {config.contactTel}</span>}
+            {config.contactEmail && (
+              <a href={`mailto:${config.contactEmail}`} className="flex items-center gap-1 hover:text-[#5C4A3A] underline underline-offset-4">
+                <Mail size={12} /> {config.contactEmail}
+              </a>
+            )}
+            {config.contactTel && (
+              <a href={`tel:${config.contactTel.replace(/\s/g, "")}`} className="flex items-center gap-1 hover:text-[#5C4A3A] underline underline-offset-4">
+                <Phone size={12} /> {config.contactTel}
+              </a>
+            )}
           </div>
         )}
         <button onClick={() => setView("legal")} className="underline underline-offset-4 mt-1 hover:text-[#5C4A3A]">
@@ -1404,11 +1412,16 @@ function ParentFlow({
               </p>
             )}
           </Field>
-          {!complet && (
-            <Field label="Nombre d'enfants">
-              <input type="number" min={1} max={selectedSession.placesRestantes} value={form.nbEnfants} onChange={(e) => setForm({ ...form, nbEnfants: e.target.value })} className="lmc-input" />
-            </Field>
-          )}
+          <Field label="Nombre d'enfants">
+            <input
+              type="number"
+              min={1}
+              max={complet ? selectedSession.placesTotal : selectedSession.placesRestantes}
+              value={form.nbEnfants}
+              onChange={(e) => setForm({ ...form, nbEnfants: e.target.value })}
+              className="lmc-input"
+            />
+          </Field>
           <input
             type="text"
             name="site_web"
@@ -1434,11 +1447,11 @@ function ParentFlow({
           </div>
         )}
 
-        {!complet && (
-          <div className="mt-4 rounded-lg px-3 py-2.5 text-sm font-semibold text-center" style={{ background: "#F3D089", color: "#2B2118" }}>
-            Vous réservez pour {form.nbEnfants || 1} enfant{Number(form.nbEnfants) > 1 ? "s" : ""} — vérifiez ce nombre avant de confirmer.
-          </div>
-        )}
+        <div className="mt-4 rounded-lg px-3 py-2.5 text-sm font-semibold text-center" style={{ background: "#F3D089", color: "#2B2118" }}>
+          {complet
+            ? `Vous vous inscrivez en liste d'attente pour ${form.nbEnfants || 1} enfant${Number(form.nbEnfants) > 1 ? "s" : ""} — vérifiez ce nombre avant de confirmer.`
+            : `Vous réservez pour ${form.nbEnfants || 1} enfant${Number(form.nbEnfants) > 1 ? "s" : ""} — vérifiez ce nombre avant de confirmer.`}
+        </div>
 
         <button onClick={onConfirm} disabled={saving} className="mt-4 w-full font-semibold py-3 rounded-full transition-colors disabled:opacity-60 flex items-center justify-center gap-2" style={{ background: complet ? "#8A5A26" : "#2B4433", color: "#F7ECD8" }}>
           {saving ? <Loader2 className="animate-spin" size={18} /> : null}
