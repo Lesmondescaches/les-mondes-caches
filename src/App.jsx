@@ -660,6 +660,7 @@ const restaurerReservation = async (id) => {
     const params = {
       to_email: r.email,
       parent_nom: r.nom,
+      parent_email: r.email,
       parent_tel: r.tel || "",
       atelier_titre: config.titre,
       ville: r.villeNom,
