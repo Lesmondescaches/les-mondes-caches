@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   MapPin, Sparkles, Settings, X, Plus, Trash2, ArrowLeft, Check, Users, Calendar,
   Clock, Coins, Loader2, Leaf, Mail, Phone, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Download,
@@ -108,6 +108,8 @@ const DEFAULT_CONFIG = {
   duree: "2h",
   contactEmail: "",
   contactTel: "",
+  paypalEmail: "",
+  fraisPort: 4.9,
   emailjsServiceId: "service_r1002kb",
   emailjsPublicKey: "feN2CqnAJEyty4ZgA",
   emailjsTemplateParent: "template_z09d89r",
@@ -298,7 +300,8 @@ export default function LesMondesCaches() {
         insertCommande(commande).then(() => {
           envoyerEmailCommande(commande);
           localStorage.removeItem("lmc_commande_pending");
-          setPanier([]);
+          const idsPayes = (commande.articles || []).map((a) => a.id);
+          setPanier((prev) => prev.filter((i) => !idsPayes.includes(i.id)));
         });
       } catch (e) {
         console.error("Erreur finalisation commande après paiement:", e);
@@ -648,6 +651,7 @@ const restaurerReservation = async (id) => {
         tel: c.tel || null,
         adresse: c.adresse,
         articles: c.articles,
+        frais_port: c.fraisPort || 0,
         total: c.total,
       });
       if (err) throw err;
@@ -954,7 +958,7 @@ onSupprimerAvis={supprimerAvis}
           <LegalPage texte={config.mentionsLegales} onBack={() => setView("parent")} />
         ) : view === "boutique" ? (
           commandeConfirmee ? (
-            <MerciCommande onRetour={() => setCommandeConfirmee(false)} />
+            <MerciCommande onRetour={() => setCommandeConfirmee(false)} articlesRestants={panier.length} />
           ) : (
             <BoutiquePage produits={produits} onOpenProduit={setProduitDetail} onAjouterPanier={ajouterAuPanier} />
           )
@@ -982,6 +986,7 @@ onSupprimerAvis={supprimerAvis}
       <PanierDrawer
         ouvert={panierOuvert}
         panier={panier}
+        fraisPort={config.fraisPort}
         onFermer={() => setPanierOuvert(false)}
         onChangerQte={changerQtePanier}
         onRetirer={retirerDuPanier}
@@ -991,7 +996,9 @@ onSupprimerAvis={supprimerAvis}
       {commandeModalOuvert && (
         <CommandeModal
           panier={panier}
+          fraisPort={config.fraisPort}
           noticeRetractation={config.noticeRetractationBoutique}
+          paypalEmail={config.paypalEmail}
           onClose={() => setCommandeModalOuvert(false)}
         />
       )}
@@ -1049,7 +1056,7 @@ function MerciPaiement({ onRetour }) {
   );
 }
 
-function MerciCommande({ onRetour }) {
+function MerciCommande({ onRetour, articlesRestants = 0 }) {
   return (
     <div className="text-center py-10">
       <div className="w-16 h-16 rounded-full text-[#F7ECD8] flex items-center justify-center mx-auto mb-6" style={{ background: "#2B4433" }}>
@@ -1062,9 +1069,16 @@ function MerciCommande({ onRetour }) {
       <p className="text-xs mt-4" style={{ color: "#5C4A3A" }}>
         Un email de confirmation vous a été envoyé. Pensez à vérifier vos courriers indésirables/spams si vous ne le voyez pas d'ici quelques minutes.
       </p>
-      <button onClick={onRetour} className="text-sm text-[#5C4A3A] underline underline-offset-4 font-medium mt-6">
-        Retour à la boutique
-      </button>
+      {articlesRestants > 0 && (
+        <p className="text-xs mt-3 font-semibold rounded-lg inline-block px-3 py-2" style={{ background: "#F3E3CB", color: "#8A5A26" }}>
+          Il vous reste {articlesRestants} article{articlesRestants > 1 ? "s" : ""} dans votre panier à régler séparément.
+        </p>
+      )}
+      <div>
+        <button onClick={onRetour} className="text-sm text-[#5C4A3A] underline underline-offset-4 font-medium mt-6">
+          Retour à la boutique
+        </button>
+      </div>
     </div>
   );
 }
@@ -1622,19 +1636,15 @@ function ProduitModal({ produit, onClose, onAjouter }) {
           <button onClick={() => onAjouter(qte)} className="w-full font-semibold py-3 rounded-full transition-colors" style={{ background: "#2B4433", color: "#F7ECD8" }}>
             Ajouter au panier
           </button>
-          {produit.lienPaypal && (
-            <a href={produit.lienPaypal} target="_blank" rel="noreferrer" className="block text-center mt-2 text-sm font-semibold py-3 rounded-full" style={{ background: "#E8B94A", color: "#2B2118" }}>
-              Acheter directement
-            </a>
-          )}
         </div>
       </div>
     </div>
   );
 }
 
-function PanierDrawer({ ouvert, panier, onFermer, onChangerQte, onRetirer, onCommander }) {
-  const total = panier.reduce((s, i) => s + i.qte * i.prix, 0);
+function PanierDrawer({ ouvert, panier, fraisPort, onFermer, onChangerQte, onRetirer, onCommander }) {
+  const sousTotal = panier.reduce((s, i) => s + i.qte * i.prix, 0);
+  const total = panier.length > 0 ? sousTotal + (fraisPort || 0) : 0;
   return (
     <>
       <div
@@ -1676,6 +1686,16 @@ function PanierDrawer({ ouvert, panier, onFermer, onChangerQte, onRetirer, onCom
           )}
         </div>
         <div className="px-5 py-4 border-t" style={{ borderColor: "#DCC79C" }}>
+          {panier.length > 0 && (
+            <>
+              <div className="flex justify-between text-sm mb-1" style={{ color: "#5C4A3A" }}>
+                <span>Sous-total</span><span>{formatPrix(sousTotal)}</span>
+              </div>
+              <div className="flex justify-between text-sm mb-3" style={{ color: "#5C4A3A" }}>
+                <span>Livraison</span><span>{formatPrix(fraisPort || 0)}</span>
+              </div>
+            </>
+          )}
           <div className="flex justify-between text-sm font-semibold mb-3" style={{ color: "#2B4433" }}>
             <span>Total</span><span>{formatPrix(total)}</span>
           </div>
@@ -1693,28 +1713,125 @@ function PanierDrawer({ ouvert, panier, onFermer, onChangerQte, onRetirer, onCom
   );
 }
 
-function CommandeModal({ panier, noticeRetractation, onClose }) {
+function ChampAdresse({ value, onChange }) {
+  const [suggestions, setSuggestions] = useState([]);
+  const [chargement, setChargement] = useState(false);
+  const timeoutRef = useRef(null);
+
+  const handleChange = (e) => {
+    const val = e.target.value;
+    onChange(val);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    if (val.trim().length < 4) {
+      setSuggestions([]);
+      return;
+    }
+    timeoutRef.current = setTimeout(async () => {
+      setChargement(true);
+      try {
+        const res = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(val)}&limit=5`);
+        const data = await res.json();
+        setSuggestions(data.features || []);
+      } catch (e) {
+        setSuggestions([]);
+      } finally {
+        setChargement(false);
+      }
+    }, 350);
+  };
+
+  const choisir = (feature) => {
+    onChange(feature.properties.label);
+    setSuggestions([]);
+  };
+
+  return (
+    <div className="relative">
+      <textarea
+        className="lmc-input"
+        rows={2}
+        value={value}
+        onChange={handleChange}
+        onBlur={() => setTimeout(() => setSuggestions([]), 150)}
+        placeholder="Commencez à taper votre adresse…"
+      />
+      {chargement && <p className="text-[10px] mt-1" style={{ color: "#8A7A56" }}>Recherche…</p>}
+      {suggestions.length > 0 && (
+        <div className="absolute z-20 left-0 right-0 mt-1 rounded-lg border overflow-hidden shadow-lg" style={{ background: "#FFFDF7", borderColor: "#DCC79C" }}>
+          {suggestions.map((f) => (
+            <button
+              key={f.properties.id}
+              type="button"
+              onMouseDown={() => choisir(f)}
+              className="block w-full text-left px-3 py-2 text-sm border-b last:border-b-0"
+              style={{ color: "#2B4433", borderColor: "#F3E3CB" }}
+            >
+              {f.properties.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CommandeModal({ panier, fraisPort, noticeRetractation, paypalEmail, onClose }) {
   const [etape, setEtape] = useState("formulaire");
   const [form, setForm] = useState({ nom: "", email: "", tel: "", adresse: "" });
   const [erreur, setErreur] = useState("");
-  const total = panier.reduce((s, i) => s + i.qte * i.prix, 0);
+  const sousTotal = panier.reduce((s, i) => s + i.qte * i.prix, 0);
+  const total = sousTotal + (fraisPort || 0);
 
-  const valider = () => {
+  const continuer = () => {
     if (!form.nom.trim() || !form.email.trim() || !form.adresse.trim()) {
       setErreur("Merci de renseigner au moins votre nom, votre email et votre adresse d'envoi.");
       return;
     }
     setErreur("");
+    setEtape("paiement");
+  };
+
+  const payerLePanier = () => {
     const commande = {
       nom: form.nom,
       email: form.email,
       tel: form.tel,
       adresse: form.adresse,
       articles: panier.map((i) => ({ id: i.id, titre: i.titre, prix: i.prix, qte: i.qte })),
+      fraisPort: fraisPort || 0,
       total,
     };
     localStorage.setItem("lmc_commande_pending", JSON.stringify(commande));
-    setEtape("paiement");
+
+    const f = document.createElement("form");
+    f.method = "post";
+    f.action = "https://www.paypal.com/cgi-bin/webscr";
+    f.target = "_top";
+    const champ = (name, value) => {
+      const input = document.createElement("input");
+      input.type = "hidden";
+      input.name = name;
+      input.value = value;
+      f.appendChild(input);
+    };
+    champ("cmd", "_cart");
+    champ("upload", "1");
+    champ("business", paypalEmail);
+    champ("currency_code", "EUR");
+    panier.forEach((item, idx) => {
+      const n = idx + 1;
+      champ(`item_name_${n}`, item.titre);
+      champ(`amount_${n}`, item.prix.toFixed(2));
+      champ(`quantity_${n}`, item.qte);
+    });
+    if (fraisPort > 0) {
+      const n = panier.length + 1;
+      champ(`item_name_${n}`, "Frais de livraison");
+      champ(`amount_${n}`, fraisPort.toFixed(2));
+      champ(`quantity_${n}`, 1);
+    }
+    document.body.appendChild(f);
+    f.submit();
   };
 
   return (
@@ -1730,32 +1847,46 @@ function CommandeModal({ panier, noticeRetractation, onClose }) {
               <Field label="Votre nom"><input className="lmc-input" value={form.nom} onChange={(e) => setForm({ ...form, nom: e.target.value })} placeholder="Prénom et nom" /></Field>
               <Field label="Email"><input type="email" className="lmc-input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="votre@email.fr" /></Field>
               <Field label="Téléphone (optionnel)"><input className="lmc-input" value={form.tel} onChange={(e) => setForm({ ...form, tel: e.target.value })} placeholder="06 12 34 56 78" /></Field>
-              <Field label="Adresse d'envoi"><textarea className="lmc-input" rows={3} value={form.adresse} onChange={(e) => setForm({ ...form, adresse: e.target.value })} placeholder="Numéro, rue, code postal, ville" /></Field>
+              <Field label="Adresse d'envoi"><ChampAdresse value={form.adresse} onChange={(val) => setForm((f) => ({ ...f, adresse: val }))} /></Field>
             </div>
             {erreur && <p className="text-xs mt-2 font-medium" style={{ color: "#B5744A" }}>{erreur}</p>}
             {noticeRetractation && <p className="text-xs mt-4 leading-relaxed" style={{ color: "#8A7A56" }}>{noticeRetractation}</p>}
-            <button onClick={valider} className="w-full mt-4 font-semibold py-3 rounded-full transition-colors" style={{ background: "#2B4433", color: "#F7ECD8" }}>
+            <button onClick={continuer} className="w-full mt-4 font-semibold py-3 rounded-full transition-colors" style={{ background: "#2B4433", color: "#F7ECD8" }}>
               Continuer vers le paiement
             </button>
           </>
         ) : (
           <>
             <h3 className="lmc-display text-2xl mb-1" style={{ color: "#2B4433" }}>Paiement</h3>
-            <p className="text-xs mb-4" style={{ color: "#8A7A56" }}>
-              Réglez chaque article ci-dessous. Une fois le paiement effectué, vous serez redirigé·e vers le site pour la confirmation.
-            </p>
-            <div className="space-y-2">
-              {panier.map((i) =>
-                i.lienPaypal ? (
-                  <a key={i.id} href={i.lienPaypal} target="_blank" rel="noreferrer" className="block text-center text-sm font-semibold py-2.5 rounded-full" style={{ background: "#E8B94A", color: "#2B2118" }}>
-                    Payer « {i.titre} » — {formatPrix(i.prix * i.qte)}
-                  </a>
-                ) : (
-                  <p key={i.id} className="text-xs" style={{ color: "#8A7A56" }}>« {i.titre} » n'a pas encore de lien de paiement — contacte-la directement.</p>
-                )
-              )}
+            <div className="rounded-xl px-4 py-3 mb-4" style={{ background: "#F3E3CB" }}>
+              {panier.map((i) => (
+                <div key={i.id} className="flex justify-between text-sm mb-1" style={{ color: "#5C4A3A" }}>
+                  <span>{i.titre} × {i.qte}</span>
+                  <span>{formatPrix(i.prix * i.qte)}</span>
+                </div>
+              ))}
+              <div className="flex justify-between text-sm mb-1" style={{ color: "#5C4A3A" }}>
+                <span>Livraison</span>
+                <span>{formatPrix(fraisPort || 0)}</span>
+              </div>
+              <div className="flex justify-between text-sm font-bold mt-2 pt-2" style={{ color: "#2B4433", borderTop: "1px solid #DCC79C" }}>
+                <span>Total</span>
+                <span>{formatPrix(total)}</span>
+              </div>
             </div>
-            <p className="text-xs mt-4" style={{ color: "#8A7A56" }}>Total : {formatPrix(total)}</p>
+
+            {paypalEmail ? (
+              <button onClick={payerLePanier} className="w-full text-center text-sm font-semibold py-3 rounded-full" style={{ background: "#E8B94A", color: "#2B2118" }}>
+                Payer {formatPrix(total)} avec PayPal
+              </button>
+            ) : (
+              <p className="text-xs" style={{ color: "#B5744A" }}>
+                Le paiement du panier n'est pas encore configuré — contactez-nous pour finaliser votre commande.
+              </p>
+            )}
+            <p className="text-xs mt-3" style={{ color: "#8A7A56" }}>
+              Vous serez redirigé·e vers PayPal pour régler l'ensemble de votre panier en un seul paiement, puis ramené·e ici pour la confirmation.
+            </p>
           </>
         )}
       </div>
@@ -1854,7 +1985,6 @@ function ProduitForm({ produit, onCancel, onSave }) {
             {uploading && <p className="text-xs font-medium" style={{ color: "#8A7A56" }}>Traitement des photos…</p>}
             {erreur && <p className="text-xs mt-1 font-medium" style={{ color: "#B5744A" }}>{erreur}</p>}
           </Field>
-          <Field label="Lien de paiement PayPal (optionnel)"><input className="lmc-input" value={form.lienPaypal} onChange={set("lienPaypal")} placeholder="https://www.paypal.com/..." /></Field>
         </div>
         <div className="flex gap-2 mt-5">
           <button onClick={onCancel} className="flex-1 text-sm font-semibold py-2.5 rounded-full border" style={{ borderColor: "#DCC79C", color: "#5C4A3A" }}>Annuler</button>
@@ -1933,6 +2063,8 @@ function AdminPanel({
   const [duree, setDuree] = useState(config.duree || "");
   const [contactEmail, setContactEmail] = useState(config.contactEmail || "");
   const [contactTel, setContactTel] = useState(config.contactTel || "");
+  const [paypalEmail, setPaypalEmail] = useState(config.paypalEmail || "");
+  const [fraisPort, setFraisPort] = useState(config.fraisPort ?? 4.9);
   const [emailjsServiceId, setEmailjsServiceId] = useState(config.emailjsServiceId || "");
   const [emailjsPublicKey, setEmailjsPublicKey] = useState(config.emailjsPublicKey || "");
   const [emailjsTemplateParent, setEmailjsTemplateParent] = useState(config.emailjsTemplateParent || "");
@@ -1985,7 +2117,7 @@ function AdminPanel({
   const saveAll = (overrides = {}) => {
     onSaveConfig({
       eyebrowAtelier, titre, description, prix: Number(prix) || 0, lienPaiement: lienPaiement.trim(), logoImage,
-      ageRange, duree, contactEmail, contactTel, conditions, motAccueil, etapeAvantTitre, etapeAvant, etapePendantTitre, etapePendant, etapeApresTitre, etapeApres, motAccueilBoutique, messageAucunCreneau, noticeRetractation, noticeRetractationBoutique, reglementAtelier, mentionsLegales, faq,
+      ageRange, duree, contactEmail, contactTel, paypalEmail: paypalEmail.trim(), fraisPort: Number(fraisPort) || 0, conditions, motAccueil, etapeAvantTitre, etapeAvant, etapePendantTitre, etapePendant, etapeApresTitre, etapeApres, motAccueilBoutique, messageAucunCreneau, noticeRetractation, noticeRetractationBoutique, reglementAtelier, mentionsLegales, faq,
       emailjsServiceId: emailjsServiceId.trim(), emailjsPublicKey: emailjsPublicKey.trim(), emailjsTemplateParent: emailjsTemplateParent.trim(), emailjsTemplateAdmin: emailjsTemplateAdmin.trim(),
       emailjsTemplateCommandeParent: emailjsTemplateCommandeParent.trim(), emailjsTemplateCommandeAdmin: emailjsTemplateCommandeAdmin.trim(),
       ...overrides,
@@ -2255,12 +2387,31 @@ function AdminPanel({
       </section>
 
       <section className="rounded-2xl border p-6 mb-6" style={{ background: "#FBF3E3", borderColor: "#DCC79C" }}>
+        <h3 className="font-semibold mb-2 flex items-center gap-2" style={{ color: "#2B4433" }}>
+          <Coins size={16} /> Paiement du panier boutique
+        </h3>
+        <p className="text-xs mb-4" style={{ color: "#8A7A56" }}>
+          Renseigne ici l'adresse email de ton compte PayPal (celle avec laquelle tu reçois
+          déjà les paiements des ateliers). Quand un client valide un panier avec plusieurs
+          articles à des prix différents, PayPal calcule automatiquement le total et le client
+          ne paie qu'une seule fois — plus besoin de créer un bouton par article.
+        </p>
+        <Field label="Email de ton compte PayPal">
+          <input className="lmc-input" value={paypalEmail} onChange={(e) => setPaypalEmail(e.target.value)} placeholder="tonadresse@paypal.com" />
+        </Field>
+        <Field label="Frais de livraison appliqués au panier (€) — à la charge du client">
+          <input type="number" step="0.1" className="lmc-input" value={fraisPort} onChange={(e) => setFraisPort(parseFloat(e.target.value) || 0)} />
+        </Field>
+        <button onClick={() => saveAll()} className="text-sm font-semibold px-5 py-2.5 rounded-full transition-colors mt-3" style={{ background: "#2B4433", color: "#F7ECD8" }}>Enregistrer</button>
+      </section>
+
+      <section className="rounded-2xl border p-6 mb-6" style={{ background: "#FBF3E3", borderColor: "#DCC79C" }}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold flex items-center gap-2" style={{ color: "#2B4433" }}>
             <ShoppingBag size={16} /> Boutique — Articles
           </h3>
           <button
-            onClick={() => setProduitEnEdition({ id: uid(), titre: "", categorie: "", prix: 10, badge: "", resume: "", description: "", images: [], lienPaypal: "" })}
+            onClick={() => setProduitEnEdition({ id: uid(), titre: "", categorie: "", prix: 10, badge: "", resume: "", description: "", images: [] })}
             className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full"
             style={{ background: "#E8B94A", color: "#2B2118" }}
           >
@@ -2429,7 +2580,9 @@ function AdminPanel({
               <div key={c.id} className="text-sm rounded-lg px-3 py-2 flex flex-wrap gap-x-4 gap-y-1 border" style={{ borderColor: "#DCC79C" }}>
                 <span className="font-semibold" style={{ color: "#2B4433" }}>{c.nom}</span>
                 <span className="font-medium" style={{ color: "#5C4A3A" }}>{(c.articles || []).map((a) => `${a.titre} x${a.qte}`).join(", ")}</span>
-                <span className="font-medium" style={{ color: "#5C4A3A" }}>{formatPrix(c.total)}</span>
+                <span className="font-medium" style={{ color: "#5C4A3A" }}>
+                  {formatPrix(c.total)}{c.frais_port ? ` (dont ${formatPrix(c.frais_port)} livraison)` : ""}
+                </span>
                 <span style={{ color: "#8A7A56" }}>{c.email}</span>
                 {c.tel && <span style={{ color: "#8A7A56" }}>{c.tel}</span>}
                 {c.adresse && <span style={{ color: "#8A7A56" }}>{c.adresse}</span>}
