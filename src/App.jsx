@@ -277,6 +277,19 @@ export default function LesMondesCaches() {
   if (params.get("merci") === "1") {
     setPaiementConfirme(true);
     window.history.replaceState({}, "", window.location.pathname);
+  }
+  if (params.get("commande") === "1") {
+    setCommandeConfirmee(true);
+    window.history.replaceState({}, "", window.location.pathname);
+  }
+}, []);
+
+  // On attend que le chargement initial (config, villes, produits) soit bien
+  // terminé avant de traiter un éventuel retour de paiement — sinon le site
+  // utiliserait encore les valeurs par défaut (templates email, etc.) au lieu
+  // de tes vrais réglages enregistrés, et les emails partiraient mal configurés.
+  useEffect(() => {
+    if (loading) return;
 
     const pendingRaw = localStorage.getItem("lmc_reservations_pending");
     if (pendingRaw) {
@@ -295,28 +308,24 @@ export default function LesMondesCaches() {
         }
       })();
     }
-  }
-  if (params.get("commande") === "1") {
-    setCommandeConfirmee(true);
-    window.history.replaceState({}, "", window.location.pathname);
 
     const pendingCommande = localStorage.getItem("lmc_commande_pending");
     if (pendingCommande) {
-      try {
-        const commande = JSON.parse(pendingCommande);
-        insertCommande(commande).then(() => {
-          envoyerEmailCommande(commande);
-          decrementerStock(commande.articles);
+      (async () => {
+        try {
+          const commande = JSON.parse(pendingCommande);
+          await insertCommande(commande);
+          await envoyerEmailCommande(commande);
+          await decrementerStock(commande.articles);
           localStorage.removeItem("lmc_commande_pending");
           const idsPayes = (commande.articles || []).map((a) => a.id);
           setPanier((prev) => prev.filter((i) => !idsPayes.includes(i.id)));
-        });
-      } catch (e) {
-        console.error("Erreur finalisation commande après paiement:", e);
-      }
+        } catch (e) {
+          console.error("Erreur finalisation commande après paiement:", e);
+        }
+      })();
     }
-  }
-}, []);
+  }, [loading]);
 
 
 
