@@ -95,6 +95,8 @@ const FONT_STYLE = `
 const uid = () => Math.random().toString(36).slice(2, 10);
 const formatPrix = (n) => `${Number(n).toFixed(2).replace(".", ",")} €`;
 const getImages = (p) => (p.images && p.images.length ? p.images : p.image ? [p.image] : []);
+const stockLimite = (p) => p.stock !== undefined && p.stock !== null && p.stock !== "";
+const enRupture = (p) => stockLimite(p) && Number(p.stock) <= 0;
 
 const DEFAULT_CONFIG = {
   eyebrowAtelier: "Atelier immersif",
@@ -299,6 +301,7 @@ export default function LesMondesCaches() {
         const commande = JSON.parse(pendingCommande);
         insertCommande(commande).then(() => {
           envoyerEmailCommande(commande);
+          decrementerStock(commande.articles);
           localStorage.removeItem("lmc_commande_pending");
           const idsPayes = (commande.articles || []).map((a) => a.id);
           setPanier((prev) => prev.filter((i) => !idsPayes.includes(i.id)));
@@ -581,16 +584,46 @@ const restaurerReservation = async (id) => {
   };
   const removeProduit = (id) => persistProduits(produits.filter((p) => p.id !== id));
 
+  const decrementerStock = async (articles) => {
+    if (!articles || articles.length === 0) return;
+    try {
+      const { data, error: err } = await supabase.from("kv_store").select("value").eq("key", "produits").single();
+      if (err) throw err;
+      const liste = data?.value ? JSON.parse(data.value) : [];
+      const maj = liste.map((p) => {
+        const achat = articles.find((a) => a.id === p.id);
+        if (!achat || !stockLimite(p)) return p;
+        return { ...p, stock: Math.max(0, Number(p.stock) - achat.qte) };
+      });
+      const { error: err2 } = await supabase.from("kv_store").upsert({ key: "produits", value: JSON.stringify(maj) });
+      if (err2) throw err2;
+      setProduits(maj);
+    } catch (e) {
+      console.error("Erreur décrément stock:", e);
+    }
+  };
+
   const ajouterAuPanier = (produit, qte = 1) => {
     setPanier((prev) => {
       const trouve = prev.find((i) => i.id === produit.id);
-      if (trouve) return prev.map((i) => (i.id === produit.id ? { ...i, qte: i.qte + qte } : i));
-      return [...prev, { ...produit, qte }];
+      const dejaDansPanier = trouve ? trouve.qte : 0;
+      const plafond = stockLimite(produit) ? Math.max(0, Number(produit.stock) - dejaDansPanier) : qte;
+      const qteAjoutee = Math.min(qte, plafond);
+      if (qteAjoutee <= 0) return prev;
+      if (trouve) return prev.map((i) => (i.id === produit.id ? { ...i, qte: i.qte + qteAjoutee } : i));
+      return [...prev, { ...produit, qte: qteAjoutee }];
     });
     setPanierOuvert(true);
   };
   const retirerDuPanier = (id) => setPanier((prev) => prev.filter((i) => i.id !== id));
-  const changerQtePanier = (id, qte) => setPanier((prev) => prev.map((i) => (i.id === id ? { ...i, qte: Math.max(1, qte) } : i)));
+  const changerQtePanier = (id, qte) =>
+    setPanier((prev) =>
+      prev.map((i) => {
+        if (i.id !== id) return i;
+        const plafond = stockLimite(i) ? Number(i.stock) : Infinity;
+        return { ...i, qte: Math.max(1, Math.min(qte, plafond)) };
+      })
+    );
 
   const envoyerEmails = async (r) => {
     if (!config.emailjsServiceId || !config.emailjsPublicKey || !window.emailjs) return;
@@ -724,6 +757,10 @@ const restaurerReservation = async (id) => {
       setError("Merci de renseigner au moins votre nom et votre email.");
       return;
     }
+    if (!form.tel.trim()) {
+      setError("Le téléphone est obligatoire, pour pouvoir vous transmettre le lieu exact de l'atelier.");
+      return;
+    }
     if (form.piege) {
       setSaving(true);
       setTimeout(() => {
@@ -740,18 +777,6 @@ const restaurerReservation = async (id) => {
     setSaving(true);
     setError("");
     const enAttente = selectedSession.placesRestantes <= 0;
-    const nextVilles = villes.map((v) =>
-      v.id === selectedVille.id
-        ? {
-            ...v,
-            sessions: v.sessions.map((s) =>
-              s.id === selectedSession.id && !enAttente
-                ? { ...s, placesRestantes: Math.max(0, s.placesRestantes - Number(form.nbEnfants || 1)) }
-                : s
-            ),
-          }
-        : v
-    );
     const reservation = {
       id: uid(),
       villeId: selectedVille.id,
@@ -763,6 +788,30 @@ const restaurerReservation = async (id) => {
       ...form,
       creeLe: new Date().toISOString(),
     };
+
+    if (enAttente) {
+      // Pas de place disponible : on enregistre directement l'inscription en liste
+      // d'attente, sans jamais rediriger vers un paiement (rien à payer tant qu'aucune
+      // place ne s'est libérée).
+      await insertReservation(reservation);
+      localStorage.setItem("lmc_derniere_resa", String(Date.now()));
+      setSaving(false);
+      setStep("confirmation");
+      return;
+    }
+
+    const nextVilles = villes.map((v) =>
+      v.id === selectedVille.id
+        ? {
+            ...v,
+            sessions: v.sessions.map((s) =>
+              s.id === selectedSession.id
+                ? { ...s, placesRestantes: Math.max(0, s.placesRestantes - Number(form.nbEnfants || 1)) }
+                : s
+            ),
+          }
+        : v
+    );
         localStorage.setItem("lmc_reservation_pending", JSON.stringify({ reservation, nextVilles }));
 
     localStorage.setItem("lmc_derniere_resa", String(Date.now()));
@@ -1297,7 +1346,7 @@ function ParentFlow({
         <div className="space-y-4">
           <Field label="Votre nom"><input value={form.nom} onChange={(e) => setForm({ ...form, nom: e.target.value })} className="lmc-input" placeholder="Prénom et nom" /></Field>
           <Field label="Email"><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="lmc-input" placeholder="votre@email.fr" /></Field>
-          <Field label="Téléphone (optionnel)"><input value={form.tel} onChange={(e) => setForm({ ...form, tel: e.target.value })} className="lmc-input" placeholder="06 12 34 56 78" /></Field>
+          <Field label="Téléphone"><input type="tel" value={form.tel} onChange={(e) => setForm({ ...form, tel: e.target.value })} className="lmc-input" placeholder="06 12 34 56 78" /></Field>
           {!complet && (
             <Field label="Nombre d'enfants">
               <input type="number" min={1} max={selectedSession.placesRestantes} value={form.nbEnfants} onChange={(e) => setForm({ ...form, nbEnfants: e.target.value })} className="lmc-input" />
@@ -1534,6 +1583,11 @@ function BoutiquePage({ produits, onOpenProduit, onAjouterPanier }) {
                         1/{imgs.length}
                       </span>
                     )}
+                    {enRupture(p) && (
+                      <span className="absolute bottom-3 left-3 text-[10px] font-bold px-2.5 py-1 rounded-full" style={{ background: "rgba(181,116,74,0.9)", color: "#F7ECD8" }}>
+                        Rupture de stock
+                      </span>
+                    )}
                   </div>
                   <div className="p-4">
                     {p.categorie && (
@@ -1549,7 +1603,12 @@ function BoutiquePage({ produits, onOpenProduit, onAjouterPanier }) {
                         <button onClick={() => onOpenProduit(p)} className="text-xs font-semibold px-3 py-2 rounded-full border" style={{ borderColor: "#DCC79C", color: "#5C4A3A" }}>
                           Découvrir
                         </button>
-                        <button onClick={() => onAjouterPanier(p, 1)} className="text-xs font-semibold px-3 py-2 rounded-full" style={{ background: "#E8B94A", color: "#2B2118" }}>
+                        <button
+                          onClick={() => onAjouterPanier(p, 1)}
+                          disabled={enRupture(p)}
+                          className="text-xs font-semibold px-3 py-2 rounded-full disabled:opacity-40"
+                          style={{ background: "#E8B94A", color: "#2B2118" }}
+                        >
                           Ajouter
                         </button>
                       </div>
@@ -1625,16 +1684,34 @@ function ProduitModal({ produit, onClose, onAjouter }) {
           )}
           <h2 className="lmc-display text-3xl mb-2" style={{ color: "#2B4433" }}>{produit.titre}</h2>
           <p className="text-sm leading-relaxed mb-4" style={{ color: "#5C4A3A" }}>{produit.description || produit.resume}</p>
+          {enRupture(produit) ? (
+            <p className="text-sm font-semibold mb-4" style={{ color: "#B5744A" }}>Rupture de stock — de retour bientôt.</p>
+          ) : stockLimite(produit) && Number(produit.stock) <= 5 ? (
+            <p className="text-xs mb-4" style={{ color: "#8A7A56" }}>Plus que {produit.stock} en stock</p>
+          ) : null}
           <div className="flex items-center gap-4 mb-4">
             <span className="text-xl font-bold" style={{ color: "#2B4433" }}>{formatPrix(produit.prix)}</span>
-            <div className="flex items-center gap-2">
-              <button onClick={() => setQte((q) => Math.max(1, q - 1))} className="w-7 h-7 rounded-full border flex items-center justify-center" style={{ borderColor: "#DCC79C" }}><Minus size={14} /></button>
-              <span className="font-semibold w-4 text-center">{qte}</span>
-              <button onClick={() => setQte((q) => q + 1)} className="w-7 h-7 rounded-full border flex items-center justify-center" style={{ borderColor: "#DCC79C" }}><Plus size={14} /></button>
-            </div>
+            {!enRupture(produit) && (
+              <div className="flex items-center gap-2">
+                <button onClick={() => setQte((q) => Math.max(1, q - 1))} className="w-7 h-7 rounded-full border flex items-center justify-center" style={{ borderColor: "#DCC79C" }}><Minus size={14} /></button>
+                <span className="font-semibold w-4 text-center">{qte}</span>
+                <button
+                  onClick={() => setQte((q) => (stockLimite(produit) ? Math.min(Number(produit.stock), q + 1) : q + 1))}
+                  className="w-7 h-7 rounded-full border flex items-center justify-center"
+                  style={{ borderColor: "#DCC79C" }}
+                >
+                  <Plus size={14} />
+                </button>
+              </div>
+            )}
           </div>
-          <button onClick={() => onAjouter(qte)} className="w-full font-semibold py-3 rounded-full transition-colors" style={{ background: "#2B4433", color: "#F7ECD8" }}>
-            Ajouter au panier
+          <button
+            onClick={() => onAjouter(qte)}
+            disabled={enRupture(produit)}
+            className="w-full font-semibold py-3 rounded-full transition-colors disabled:opacity-40"
+            style={{ background: "#2B4433", color: "#F7ECD8" }}
+          >
+            {enRupture(produit) ? "Rupture de stock" : "Ajouter au panier"}
           </button>
         </div>
       </div>
@@ -1959,6 +2036,9 @@ function ProduitForm({ produit, onCancel, onSave }) {
             <Field label="Prix (€)"><input type="number" step="0.5" className="lmc-input" value={form.prix} onChange={(e) => setForm((f) => ({ ...f, prix: parseFloat(e.target.value) || 0 }))} /></Field>
             <Field label="Badge (optionnel)"><input className="lmc-input" value={form.badge} onChange={set("badge")} placeholder="Ex. Nouveauté" /></Field>
           </div>
+          <Field label="Stock disponible (laisse vide si illimité)">
+            <input type="number" min="0" className="lmc-input" value={form.stock ?? ""} onChange={(e) => setForm((f) => ({ ...f, stock: e.target.value === "" ? "" : parseInt(e.target.value, 10) || 0 }))} placeholder="Ex. 5" />
+          </Field>
           <Field label="Résumé court (carte produit)"><input className="lmc-input" value={form.resume} onChange={set("resume")} /></Field>
           <Field label="Description complète"><textarea className="lmc-input" rows={3} value={form.description} onChange={set("description")} /></Field>
           <Field label="Photos (plusieurs possibles — le client pourra les faire défiler)">
@@ -2414,7 +2494,7 @@ function AdminPanel({
             <ShoppingBag size={16} /> Boutique — Articles
           </h3>
           <button
-            onClick={() => setProduitEnEdition({ id: uid(), titre: "", categorie: "", prix: 10, badge: "", resume: "", description: "", images: [] })}
+            onClick={() => setProduitEnEdition({ id: uid(), titre: "", categorie: "", prix: 10, badge: "", stock: "", resume: "", description: "", images: [] })}
             className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full"
             style={{ background: "#E8B94A", color: "#2B2118" }}
           >
