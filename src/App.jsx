@@ -276,19 +276,22 @@ export default function LesMondesCaches() {
     setPaiementConfirme(true);
     window.history.replaceState({}, "", window.location.pathname);
 
-    const pending = params.get("merci") === "1" ? localStorage.getItem("lmc_reservation_pending") : null;
-    if (pending) {
-      try {
-        const { reservation, nextVilles } = JSON.parse(pending);
-        insertReservation(reservation).then(() => {
-         if (nextVilles) persistVilles(nextVilles);
-
-          envoyerEmails(reservation);
-          localStorage.removeItem("lmc_reservation_pending");
-        });
-      } catch (e) {
-        console.error("Erreur finalisation réservation après paiement:", e);
-      }
+    const pendingRaw = localStorage.getItem("lmc_reservations_pending");
+    if (pendingRaw) {
+      (async () => {
+        try {
+          const file = JSON.parse(pendingRaw);
+          for (const reservation of file) {
+            await insertReservation(reservation);
+            if (!reservation.enAttente) {
+              await decrementerPlaceSession(reservation.villeId, reservation.sessionId, reservation.nbEnfants);
+            }
+          }
+          localStorage.removeItem("lmc_reservations_pending");
+        } catch (e) {
+          console.error("Erreur finalisation réservation après paiement:", e);
+        }
+      })();
     }
   }
   if (params.get("commande") === "1") {
@@ -603,6 +606,31 @@ const restaurerReservation = async (id) => {
     }
   };
 
+  const decrementerPlaceSession = async (villeId, sessionId, nbEnfants) => {
+    try {
+      const { data, error: err } = await supabase.from("kv_store").select("value").eq("key", "villes").single();
+      if (err) throw err;
+      const liste = data?.value ? JSON.parse(data.value) : [];
+      const maj = liste.map((v) =>
+        v.id === villeId
+          ? {
+              ...v,
+              sessions: v.sessions.map((s) =>
+                s.id === sessionId
+                  ? { ...s, placesRestantes: Math.max(0, s.placesRestantes - Number(nbEnfants || 1)) }
+                  : s
+              ),
+            }
+          : v
+      );
+      const { error: err2 } = await supabase.from("kv_store").upsert({ key: "villes", value: JSON.stringify(maj) });
+      if (err2) throw err2;
+      setVilles(maj);
+    } catch (e) {
+      console.error("Erreur décrément places:", e);
+    }
+  };
+
   const ajouterAuPanier = (produit, qte = 1) => {
     setPanier((prev) => {
       const trouve = prev.find((i) => i.id === produit.id);
@@ -630,6 +658,7 @@ const restaurerReservation = async (id) => {
     const params = {
       to_email: r.email,
       parent_nom: r.nom,
+      parent_tel: r.tel || "",
       atelier_titre: config.titre,
       ville: r.villeNom,
       date: r.date,
@@ -745,6 +774,21 @@ const restaurerReservation = async (id) => {
     );
     persistVilles(next);
   };
+  const ajusterPlacesSession = (villeId, sessionId, delta) => {
+    const next = villes.map((v) =>
+      v.id === villeId
+        ? {
+            ...v,
+            sessions: v.sessions.map((s) =>
+              s.id === sessionId
+                ? { ...s, placesRestantes: Math.max(0, Math.min(s.placesTotal, s.placesRestantes + delta)) }
+                : s
+            ),
+          }
+        : v
+    );
+    persistVilles(next);
+  };
 
   const startBooking = (ville, session) => {
     setSelectedVille(ville);
@@ -800,24 +844,12 @@ const restaurerReservation = async (id) => {
       return;
     }
 
-    const nextVilles = villes.map((v) =>
-      v.id === selectedVille.id
-        ? {
-            ...v,
-            sessions: v.sessions.map((s) =>
-              s.id === selectedSession.id
-                ? { ...s, placesRestantes: Math.max(0, s.placesRestantes - Number(form.nbEnfants || 1)) }
-                : s
-            ),
-          }
-        : v
-    );
-        localStorage.setItem("lmc_reservation_pending", JSON.stringify({ reservation, nextVilles }));
+    const dejaEnFile = JSON.parse(localStorage.getItem("lmc_reservations_pending") || "[]");
+    dejaEnFile.push(reservation);
+    localStorage.setItem("lmc_reservations_pending", JSON.stringify(dejaEnFile));
 
     localStorage.setItem("lmc_derniere_resa", String(Date.now()));
     window.location.href = config.lienPaiement || window.location.href;
-
-    
   };
 
   const resetParcours = () => {
@@ -987,7 +1019,7 @@ const restaurerReservation = async (id) => {
           <AdminPanel
             config={config} villes={villes} reservations={reservations} produits={produits} commandes={commandes}
             onSaveConfig={persistConfig} onAddVille={addVille} onRemoveVille={removeVille}
-            onAddSession={addSession} onRemoveSession={removeSession} onClose={seDeconnecter} onChangePassword={changerMotDePasse}
+            onAddSession={addSession} onRemoveSession={removeSession} onAjusterPlaces={ajusterPlacesSession} onClose={seDeconnecter} onChangePassword={changerMotDePasse}
           onSupprimerReservation={supprimerReservation}
 onRestaurerReservation={restaurerReservation}
 voirCorbeille={voirCorbeille}
@@ -2127,7 +2159,7 @@ function exportCommandesCSV(commandes) {
 
 function AdminPanel({
   config, villes, reservations, produits, commandes,
-  onSaveConfig, onAddVille, onRemoveVille, onAddSession, onRemoveSession, onClose, onChangePassword,
+  onSaveConfig, onAddVille, onRemoveVille, onAddSession, onRemoveSession, onAjusterPlaces, onClose, onChangePassword,
   onSupprimerReservation, onRestaurerReservation, voirCorbeille, onToggleCorbeille,
   onSaveProduit, onRemoveProduit,
   onSupprimerCommande, onRestaurerCommande, voirCorbeilleCommandes, onToggleCorbeilleCommandes,
@@ -2447,9 +2479,14 @@ function AdminPanel({
               <div className="space-y-2 mb-3">
                 {ville.sessions.map((s) => (
                   <div key={s.id} className="text-sm rounded-lg px-3 py-2 font-medium" style={{ background: "#F3E3CB", color: "#2B4433" }}>
-                    <div className="flex items-center justify-between">
-                      <span>{s.date} · {s.heure} · {s.placesRestantes}/{s.placesTotal} place(s)</span>
-                      <button onClick={() => onRemoveSession(ville.id, s.id)} className="text-[#B5744A] hover:text-[#8A4A26]"><Trash2 size={14} /></button>
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <span>{s.date} · {s.heure}</span>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => onAjusterPlaces(ville.id, s.id, -1)} disabled={s.placesRestantes <= 0} className="w-6 h-6 rounded-full border flex items-center justify-center disabled:opacity-30" style={{ borderColor: "#DCC79C" }} aria-label="Retirer une place disponible"><Minus size={12} /></button>
+                        <span className="min-w-[64px] text-center">{s.placesRestantes}/{s.placesTotal} place(s)</span>
+                        <button onClick={() => onAjusterPlaces(ville.id, s.id, 1)} disabled={s.placesRestantes >= s.placesTotal} className="w-6 h-6 rounded-full border flex items-center justify-center disabled:opacity-30" style={{ borderColor: "#DCC79C" }} aria-label="Libérer une place (ex. après une annulation)"><Plus size={12} /></button>
+                        <button onClick={() => onRemoveSession(ville.id, s.id)} className="text-[#B5744A] hover:text-[#8A4A26]"><Trash2 size={14} /></button>
+                      </div>
                     </div>
                     {s.note && <div className="text-xs italic mt-0.5" style={{ color: "#8A7A56" }}>{s.note}</div>}
                   </div>
