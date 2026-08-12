@@ -861,7 +861,36 @@ const restaurerReservation = async (id) => {
     localStorage.setItem("lmc_reservations_pending", JSON.stringify(dejaEnFile));
 
     localStorage.setItem("lmc_derniere_resa", String(Date.now()));
-    window.location.href = config.lienPaiement || window.location.href;
+
+    if (config.paypalEmail) {
+      const f = document.createElement("form");
+      f.method = "post";
+      f.action = "https://www.paypal.com/cgi-bin/webscr";
+      f.target = "_top";
+      const champ = (name, value) => {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = name;
+        input.value = value;
+        f.appendChild(input);
+      };
+      champ("cmd", "_cart");
+      champ("upload", "1");
+      champ("business", config.paypalEmail);
+      champ("currency_code", "EUR");
+      champ("item_name_1", config.titre);
+      champ("amount_1", (Number(config.prix) || 0).toFixed(2));
+      champ("quantity_1", String(Number(form.nbEnfants) || 1));
+      champ("return", `${window.location.origin}/?merci=1`);
+      champ("cancel_return", `${window.location.origin}/`);
+      champ("rm", "1");
+      document.body.appendChild(f);
+      f.submit();
+    } else {
+      // Ancien mode de repli : lien PayPal à prix fixe (ne tient pas compte du
+      // nombre d'enfants) — à éviter, configure ton email PayPal dès que possible.
+      window.location.href = config.lienPaiement || window.location.href;
+    }
   };
 
   const resetParcours = () => {
@@ -2456,7 +2485,7 @@ function AdminPanel({
           </div>
           <div className="grid grid-cols-2 gap-4">
             <Field label="Tarif par enfant (€)"><input type="number" className="lmc-input" value={prix} onChange={(e) => setPrix(e.target.value)} /></Field>
-            <Field label="Lien de paiement"><input className="lmc-input" value={lienPaiement} onChange={(e) => setLienPaiement(e.target.value)} placeholder="https://..." /></Field>
+            <Field label="Ancien lien de paiement (secours uniquement — utilisé seulement si l'email PayPal ci-dessous n'est pas renseigné)"><input className="lmc-input" value={lienPaiement} onChange={(e) => setLienPaiement(e.target.value)} placeholder="https://..." /></Field>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <Field label="Email de contact"><input className="lmc-input" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} placeholder="contact@..." /></Field>
@@ -2557,18 +2586,18 @@ function AdminPanel({
 
       <section className="rounded-2xl border p-6 mb-6" style={{ background: "#FBF3E3", borderColor: "#DCC79C" }}>
         <h3 className="font-semibold mb-2 flex items-center gap-2" style={{ color: "#2B4433" }}>
-          <Coins size={16} /> Paiement du panier boutique
+          <Coins size={16} /> Paiement PayPal (ateliers et boutique)
         </h3>
         <p className="text-xs mb-4" style={{ color: "#8A7A56" }}>
-          Renseigne ici l'adresse email de ton compte PayPal (celle avec laquelle tu reçois
-          déjà les paiements des ateliers). Quand un client valide un panier avec plusieurs
-          articles à des prix différents, PayPal calcule automatiquement le total et le client
-          ne paie qu'une seule fois — plus besoin de créer un bouton par article.
+          Renseigne ici l'adresse email de ton compte PayPal. Elle sert maintenant à calculer
+          automatiquement le bon montant à payer, aussi bien pour une réservation d'atelier
+          (prix × nombre d'enfants) que pour un panier boutique (total des articles + livraison)
+          — plus besoin de créer un bouton à prix fixe par atelier.
         </p>
         <Field label="Email de ton compte PayPal">
           <input className="lmc-input" value={paypalEmail} onChange={(e) => setPaypalEmail(e.target.value)} placeholder="tonadresse@paypal.com" />
         </Field>
-        <Field label="Frais de livraison appliqués au panier (€) — à la charge du client">
+        <Field label="Frais de livraison appliqués au panier boutique (€) — à la charge du client">
           <input type="number" step="0.1" className="lmc-input" value={fraisPort} onChange={(e) => setFraisPort(parseFloat(e.target.value) || 0)} />
         </Field>
         <button onClick={() => saveAll()} className="text-sm font-semibold px-5 py-2.5 rounded-full transition-colors mt-3" style={{ background: "#2B4433", color: "#F7ECD8" }}>Enregistrer</button>
