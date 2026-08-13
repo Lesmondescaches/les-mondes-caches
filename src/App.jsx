@@ -272,13 +272,18 @@ export default function LesMondesCaches() {
   const [paiementConfirme, setPaiementConfirme] = useState(false);
   const [commandeConfirmee, setCommandeConfirmee] = useState(false);
 
+  const retourMerciRef = useRef(false);
+  const retourCommandeRef = useRef(false);
+
   useEffect(() => {
   const params = new URLSearchParams(window.location.search);
   if (params.get("merci") === "1") {
+    retourMerciRef.current = true;
     setPaiementConfirme(true);
     window.history.replaceState({}, "", window.location.pathname);
   }
   if (params.get("commande") === "1") {
+    retourCommandeRef.current = true;
     setCommandeConfirmee(true);
     window.history.replaceState({}, "", window.location.pathname);
   }
@@ -288,42 +293,49 @@ export default function LesMondesCaches() {
   // terminé avant de traiter un éventuel retour de paiement — sinon le site
   // utiliserait encore les valeurs par défaut (templates email, etc.) au lieu
   // de tes vrais réglages enregistrés, et les emails partiraient mal configurés.
+  // On ne traite quoi que ce soit que si un vrai retour de paiement (?merci=1
+  // ou ?commande=1) a été détecté au chargement — jamais juste parce qu'une
+  // réservation est restée en attente dans le navigateur (ex. paiement abandonné).
   useEffect(() => {
     if (loading) return;
 
-    const pendingRaw = localStorage.getItem("lmc_reservations_pending");
-    if (pendingRaw) {
-      (async () => {
-        try {
-          const file = JSON.parse(pendingRaw);
-          for (const reservation of file) {
-            await insertReservation(reservation);
-            if (!reservation.enAttente) {
-              await decrementerPlaceSession(reservation.villeId, reservation.sessionId, reservation.nbEnfants);
+    if (retourMerciRef.current) {
+      const pendingRaw = localStorage.getItem("lmc_reservations_pending");
+      if (pendingRaw) {
+        (async () => {
+          try {
+            const file = JSON.parse(pendingRaw);
+            for (const reservation of file) {
+              await insertReservation(reservation);
+              if (!reservation.enAttente) {
+                await decrementerPlaceSession(reservation.villeId, reservation.sessionId, reservation.nbEnfants);
+              }
             }
+            localStorage.removeItem("lmc_reservations_pending");
+          } catch (e) {
+            console.error("Erreur finalisation réservation après paiement:", e);
           }
-          localStorage.removeItem("lmc_reservations_pending");
-        } catch (e) {
-          console.error("Erreur finalisation réservation après paiement:", e);
-        }
-      })();
+        })();
+      }
     }
 
-    const pendingCommande = localStorage.getItem("lmc_commande_pending");
-    if (pendingCommande) {
-      (async () => {
-        try {
-          const commande = JSON.parse(pendingCommande);
-          await insertCommande(commande);
-          await envoyerEmailCommande(commande);
-          await decrementerStock(commande.articles);
-          localStorage.removeItem("lmc_commande_pending");
-          const idsPayes = (commande.articles || []).map((a) => a.id);
-          setPanier((prev) => prev.filter((i) => !idsPayes.includes(i.id)));
-        } catch (e) {
-          console.error("Erreur finalisation commande après paiement:", e);
-        }
-      })();
+    if (retourCommandeRef.current) {
+      const pendingCommande = localStorage.getItem("lmc_commande_pending");
+      if (pendingCommande) {
+        (async () => {
+          try {
+            const commande = JSON.parse(pendingCommande);
+            await insertCommande(commande);
+            await envoyerEmailCommande(commande);
+            await decrementerStock(commande.articles);
+            localStorage.removeItem("lmc_commande_pending");
+            const idsPayes = (commande.articles || []).map((a) => a.id);
+            setPanier((prev) => prev.filter((i) => !idsPayes.includes(i.id)));
+          } catch (e) {
+            console.error("Erreur finalisation commande après paiement:", e);
+          }
+        })();
+      }
     }
   }, [loading]);
 
@@ -425,6 +437,26 @@ const restaurerReservation = async (id) => {
   }
 };
 
+const basculerContacte = async (id, valeurActuelle) => {
+  try {
+    const { error: err } = await supabase.from("reservations").update({ contacte: !valeurActuelle }).eq("id", id);
+    if (err) throw err;
+    loadReservations();
+  } catch (e) {
+    console.error("Erreur mise à jour contacté:", e);
+  }
+};
+
+const viderCorbeilleReservations = async () => {
+  try {
+    const { error: err } = await supabase.from("reservations").delete().eq("supprime", true);
+    if (err) throw err;
+    loadReservations();
+  } catch (e) {
+    console.error("Erreur vidage corbeille réservations:", e);
+  }
+};
+
   const loadCommandes = useCallback(async () => {
     try {
       const { data, error: err } = await supabase
@@ -453,6 +485,15 @@ const restaurerReservation = async (id) => {
       loadCommandes();
     } catch (e) {
       console.error("Erreur restauration commande:", e);
+    }
+  };
+  const viderCorbeilleCommandes = async () => {
+    try {
+      const { error: err } = await supabase.from("commandes").delete().eq("supprime", true);
+      if (err) throw err;
+      loadCommandes();
+    } catch (e) {
+      console.error("Erreur vidage corbeille commandes:", e);
     }
   };
 
@@ -1079,6 +1120,9 @@ const restaurerReservation = async (id) => {
             onAddSession={addSession} onRemoveSession={removeSession} onAjusterPlaces={ajusterPlacesSession} onClose={seDeconnecter} onChangePassword={changerMotDePasse}
           onSupprimerReservation={supprimerReservation}
 onRestaurerReservation={restaurerReservation}
+onBasculerContacte={basculerContacte}
+onViderCorbeilleReservations={viderCorbeilleReservations}
+onViderCorbeilleCommandes={viderCorbeilleCommandes}
 voirCorbeille={voirCorbeille}
 onToggleCorbeille={() => setVoirCorbeille(!voirCorbeille)}
 onSaveProduit={saveProduit}
@@ -2277,9 +2321,9 @@ function exportCommandesCSV(commandes) {
 function AdminPanel({
   config, villes, reservations, produits, commandes,
   onSaveConfig, onAddVille, onRemoveVille, onAddSession, onRemoveSession, onAjusterPlaces, onClose, onChangePassword,
-  onSupprimerReservation, onRestaurerReservation, voirCorbeille, onToggleCorbeille,
+  onSupprimerReservation, onRestaurerReservation, onBasculerContacte, onViderCorbeilleReservations, onViderCorbeilleCommandes, voirCorbeille, onToggleCorbeille,
   onSaveProduit, onRemoveProduit,
-  onSupprimerCommande, onRestaurerCommande, voirCorbeilleCommandes, onToggleCorbeilleCommandes,
+  onSupprimerCommande, onRestaurerCommande, onViderCorbeilleCommandes, voirCorbeilleCommandes, onToggleCorbeilleCommandes,
   avisAdmin, onValiderAvis, onDepublierAvis, onSupprimerAvis,
 }) {
  
@@ -2751,6 +2795,56 @@ function AdminPanel({
         <button onClick={addFaqItem} className="text-sm font-semibold px-4 py-2 rounded-full" style={{ background: "#E8B94A", color: "#2B2118" }}>Ajouter la question</button>
       </section>
 
+      {(() => {
+        const enAttente = reservations.filter((r) => r.en_attente && !r.supprime);
+        if (enAttente.length === 0) return null;
+        const groupes = {};
+        enAttente.forEach((r) => {
+          const cle = `${r.ville_nom}__${r.date}__${r.heure}`;
+          if (!groupes[cle]) groupes[cle] = { ville: r.ville_nom, date: r.date, heure: r.heure, items: [] };
+          groupes[cle].items.push(r);
+        });
+        Object.values(groupes).forEach((g) => g.items.sort((a, b) => new Date(a.cree_le) - new Date(b.cree_le)));
+        return (
+          <section className="rounded-2xl border p-6 mb-6" style={{ background: "#FBF3E3", borderColor: "#DCC79C" }}>
+            <h3 className="font-semibold mb-1 flex items-center gap-2" style={{ color: "#2B4433" }}>
+              <Clock size={16} /> Liste d'attente ({enAttente.length})
+            </h3>
+            <p className="text-xs mb-4" style={{ color: "#8A7A56" }}>
+              Regroupée par créneau, dans l'ordre d'inscription — le premier de chaque liste est celui
+              à contacter en priorité si une place se libère.
+            </p>
+            <div className="space-y-4">
+              {Object.values(groupes).map((g, gi) => (
+                <div key={gi}>
+                  <p className="text-sm font-bold mb-2" style={{ color: "#2B4433" }}>
+                    {g.ville} — {g.date} · {g.heure}
+                  </p>
+                  <div className="space-y-2">
+                    {g.items.map((r, i) => (
+                      <div key={r.id} className="text-sm rounded-lg px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-1 border" style={{ borderColor: "#DCC79C", opacity: r.contacte ? 0.6 : 1 }}>
+                        <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0" style={{ background: "#2B4433", color: "#F7ECD8" }}>{i + 1}</span>
+                        <span className="font-semibold" style={{ color: "#2B4433" }}>{r.nom}</span>
+                        <span style={{ color: "#8A7A56" }}>{r.nb_enfants} enfant(s)</span>
+                        {r.tel && <a href={`tel:${r.tel.replace(/\s/g, "")}`} className="underline" style={{ color: "#5C4A3A" }}>{r.tel}</a>}
+                        <a href={`mailto:${r.email}`} className="underline" style={{ color: "#5C4A3A" }}>{r.email}</a>
+                        <div className="flex items-center gap-3 ml-auto">
+                          <label className="flex items-center gap-1.5 text-xs font-medium cursor-pointer" style={{ color: "#8A7A56" }}>
+                            <input type="checkbox" checked={!!r.contacte} onChange={() => onBasculerContacte(r.id, r.contacte)} />
+                            Contacté·e
+                          </label>
+                          <button onClick={() => onSupprimerReservation(r.id)} className="text-xs underline" style={{ color: "#B5744A" }}>Supprimer</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        );
+      })()}
+
       <section className="rounded-2xl border p-6" style={{ background: "#FBF3E3", borderColor: "#DCC79C" }}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold flex items-center gap-2" style={{ color: "#2B4433" }}>
@@ -2764,6 +2858,15 @@ function AdminPanel({
         <button onClick={onToggleCorbeille} className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg" style={{ background: "#DCC79C", color: "#2B4433" }}>
   {voirCorbeille ? "Retour à la liste" : "Voir la corbeille"}
 </button>
+{voirCorbeille && reservations.some((r) => r.supprime) && (
+  <button
+    onClick={() => { if (window.confirm("Supprimer définitivement toutes les réservations de la corbeille ? Cette action est irréversible.")) onViderCorbeilleReservations(); }}
+    className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg"
+    style={{ background: "#B5744A", color: "#F7ECD8" }}
+  >
+    Vider la corbeille
+  </button>
+)}
 </div>
         <p className="text-xs mb-3" style={{ color: "#8A7A56" }}>
           Cette liste n'est visible que parce que tu es connecté·e — elle est invisible pour
@@ -2808,6 +2911,15 @@ function AdminPanel({
           <button onClick={onToggleCorbeilleCommandes} className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg" style={{ background: "#DCC79C", color: "#2B4433" }}>
             {voirCorbeilleCommandes ? "Retour à la liste" : "Voir la corbeille"}
           </button>
+          {voirCorbeilleCommandes && commandes.some((c) => c.supprime) && (
+            <button
+              onClick={() => { if (window.confirm("Supprimer définitivement toutes les commandes de la corbeille ? Cette action est irréversible.")) onViderCorbeilleCommandes(); }}
+              className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg"
+              style={{ background: "#B5744A", color: "#F7ECD8" }}
+            >
+              Vider la corbeille
+            </button>
+          )}
         </div>
         <p className="text-xs mb-3" style={{ color: "#8A7A56" }}>
           Une commande apparaît ici une fois que le client est revenu sur le site après son
