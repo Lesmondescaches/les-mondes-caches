@@ -354,6 +354,7 @@ const [voirCorbeille, setVoirCorbeille] = useState(false);
   const [step, setStep] = useState("choix");
   const [form, setForm] = useState({ nom: "", email: "", tel: "", nbEnfants: 1, piege: "" });
   const [saving, setSaving] = useState(false);
+  const [confirmationOuverte, setConfirmationOuverte] = useState(false);
   const [error, setError] = useState("");
   const [openFaq, setOpenFaq] = useState(null);
 
@@ -809,7 +810,7 @@ const restaurerReservation = async (id) => {
     setStep("formulaire");
   };
 
-  const confirmBooking = async () => {
+  const verifierAvantConfirmation = () => {
     if (!form.nom.trim() || !form.email.trim()) {
       setError("Merci de renseigner au moins votre nom et votre email.");
       return;
@@ -839,6 +840,12 @@ const restaurerReservation = async (id) => {
       setError("Merci de patienter un instant avant de réserver à nouveau.");
       return;
     }
+    setError("");
+    setConfirmationOuverte(true);
+  };
+
+  const confirmBooking = async () => {
+    setConfirmationOuverte(false);
     setSaving(true);
     setError("");
     const enAttente = selectedSession.placesRestantes <= 0;
@@ -1099,13 +1106,46 @@ onSupprimerAvis={supprimerAvis}
           <ParentFlow
             config={config} villes={villes} step={step} selectedVille={selectedVille} selectedSession={selectedSession}
             form={form} setForm={setForm} saving={saving} openFaq={openFaq} setOpenFaq={setOpenFaq}
-            onSelectVille={setSelectedVille} onStartBooking={startBooking} onConfirm={confirmBooking}
+            onSelectVille={setSelectedVille} onStartBooking={startBooking} onConfirm={verifierAvantConfirmation}
             onReset={resetParcours} onBack={() => setStep("choix")}
             avisPublics={avisPublics} onEnvoyerAvis={envoyerAvis}
           />
         )}
       </main>
 
+      {confirmationOuverte && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(27,20,10,0.55)" }} onClick={() => setConfirmationOuverte(false)}>
+          <div className="rounded-2xl max-w-sm w-full p-6 text-center" style={{ background: "#FBF3E3" }} onClick={(e) => e.stopPropagation()}>
+            <h3 className="lmc-display text-2xl mb-3" style={{ color: "#2B4433" }}>Un instant…</h3>
+            <p className="text-sm mb-1" style={{ color: "#5C4A3A" }}>
+              {selectedSession && selectedSession.placesRestantes <= 0
+                ? "Vous vous inscrivez en liste d'attente pour"
+                : "Vous réservez pour"}
+            </p>
+            <p className="text-3xl font-bold mb-4" style={{ color: "#2B4433" }}>
+              {form.nbEnfants || 1} enfant{Number(form.nbEnfants) > 1 ? "s" : ""}
+            </p>
+            <p className="text-xs mb-5" style={{ color: "#8A7A56" }}>Est-ce bien le bon nombre ?</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmationOuverte(false)}
+                className="flex-1 font-semibold py-3 rounded-full border"
+                style={{ borderColor: "#DCC79C", color: "#5C4A3A" }}
+              >
+                Non, modifier
+              </button>
+              <button
+                onClick={confirmBooking}
+                disabled={saving}
+                className="flex-1 font-semibold py-3 rounded-full disabled:opacity-60"
+                style={{ background: "#2B4433", color: "#F7ECD8" }}
+              >
+                Oui, confirmer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {produitDetail && (
         <ProduitModal
           produit={produitDetail}
@@ -1485,12 +1525,6 @@ function ParentFlow({
             <p className="leading-relaxed">{config.reglementAtelier}</p>
           </div>
         )}
-
-        <div className="mt-4 rounded-lg px-3 py-2.5 text-sm font-semibold text-center" style={{ background: "#F3D089", color: "#2B2118" }}>
-          {complet
-            ? `Vous vous inscrivez en liste d'attente pour ${form.nbEnfants || 1} enfant${Number(form.nbEnfants) > 1 ? "s" : ""} — vérifiez ce nombre avant de confirmer.`
-            : `Vous réservez pour ${form.nbEnfants || 1} enfant${Number(form.nbEnfants) > 1 ? "s" : ""} — vérifiez ce nombre avant de confirmer.`}
-        </div>
 
         <button onClick={onConfirm} disabled={saving} className="mt-4 w-full font-semibold py-3 rounded-full transition-colors disabled:opacity-60 flex items-center justify-center gap-2" style={{ background: complet ? "#8A5A26" : "#2B4433", color: "#F7ECD8" }}>
           {saving ? <Loader2 className="animate-spin" size={18} /> : null}
