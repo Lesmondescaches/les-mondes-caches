@@ -2321,7 +2321,7 @@ function exportCommandesCSV(commandes) {
 function AdminPanel({
   config, villes, reservations, produits, commandes,
   onSaveConfig, onAddVille, onRemoveVille, onAddSession, onRemoveSession, onAjusterPlaces, onClose, onChangePassword,
-  onSupprimerReservation, onRestaurerReservation, onBasculerContacte, onViderCorbeilleReservations, onViderCorbeilleCommandes, voirCorbeille, onToggleCorbeille,
+  onSupprimerReservation, onRestaurerReservation, onBasculerContacte, onViderCorbeilleReservations, voirCorbeille, onToggleCorbeille,
   onSaveProduit, onRemoveProduit,
   onSupprimerCommande, onRestaurerCommande, onViderCorbeilleCommandes, voirCorbeilleCommandes, onToggleCorbeilleCommandes,
   avisAdmin, onValiderAvis, onDepublierAvis, onSupprimerAvis,
