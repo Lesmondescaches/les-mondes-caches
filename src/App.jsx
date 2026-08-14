@@ -364,6 +364,7 @@ const [voirCorbeille, setVoirCorbeille] = useState(false);
   const [form, setForm] = useState({ nom: "", email: "", tel: "", nbEnfants: 1, piege: "" });
   const [saving, setSaving] = useState(false);
   const [confirmationOuverte, setConfirmationOuverte] = useState(false);
+  const [alerteMessage, setAlerteMessage] = useState("");
   const [error, setError] = useState("");
   const [openFaq, setOpenFaq] = useState(null);
 
@@ -843,19 +844,19 @@ const viderCorbeilleReservations = async () => {
 
   const verifierAvantConfirmation = () => {
     if (!form.nom.trim() || !form.email.trim()) {
-      setError("Merci de renseigner au moins votre nom et votre email.");
+      setAlerteMessage("Merci de renseigner au moins votre nom et votre email.");
       return;
     }
     if (!form.tel.trim()) {
-      setError("Le téléphone est obligatoire, pour pouvoir vous transmettre le lieu exact de l'atelier.");
+      setAlerteMessage("Le téléphone est obligatoire, pour pouvoir vous transmettre le lieu exact de l'atelier.");
       return;
     }
     if (!telephoneValide(form.tel)) {
-      setError("Le numéro de téléphone ne semble pas valide — merci de vérifier (10 chiffres, sans lettre).");
+      setAlerteMessage("Le numéro de téléphone ne semble pas valide — merci de vérifier (10 chiffres, sans lettre).");
       return;
     }
     if (selectedSession.placesRestantes > 0 && Number(form.nbEnfants || 1) > selectedSession.placesRestantes) {
-      setError(`Il ne reste que ${selectedSession.placesRestantes} place(s) pour ce créneau — merci de réduire le nombre d'enfants, ou de nous contacter directement.`);
+      setAlerteMessage(`Il ne reste que ${selectedSession.placesRestantes} place(s) pour ce créneau — merci de réduire le nombre d'enfants, ou de nous contacter directement.`);
       return;
     }
     if (form.piege) {
@@ -868,7 +869,7 @@ const viderCorbeilleReservations = async () => {
     }
     const dernier = Number(localStorage.getItem("lmc_derniere_resa") || 0);
     if (Date.now() - dernier < 60000) {
-      setError("Merci de patienter un instant avant de réserver à nouveau.");
+      setAlerteMessage("Merci de patienter un instant avant de réserver à nouveau.");
       return;
     }
     setError("");
@@ -1177,6 +1178,24 @@ onSupprimerAvis={supprimerAvis}
                 Oui, confirmer
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {alerteMessage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(27,20,10,0.55)" }} onClick={() => setAlerteMessage("")}>
+          <div className="rounded-2xl max-w-sm w-full p-6 text-center" style={{ background: "#FBF3E3" }} onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: "#F3E3CB", color: "#8A5A26" }}>
+              <X size={22} />
+            </div>
+            <p className="text-sm mb-6" style={{ color: "#5C4A3A" }}>{alerteMessage}</p>
+            <button
+              onClick={() => setAlerteMessage("")}
+              className="w-full font-semibold py-3 rounded-full"
+              style={{ background: "#2B4433", color: "#F7ECD8" }}
+            >
+              Compris
+            </button>
           </div>
         </div>
       )}
