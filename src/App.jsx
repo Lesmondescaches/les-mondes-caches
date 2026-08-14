@@ -116,10 +116,7 @@ const DEFAULT_CONFIG = {
   emailjsServiceId: "service_r1002kb",
   emailjsPublicKey: "feN2CqnAJEyty4ZgA",
   emailjsTemplateParent: "template_z09d89r",
-  emailjsTemplateListeAttente: "",
   emailjsTemplateAdmin: "template_z09d89r",
-  emailjsTemplateCommandeParent: "",
-  emailjsTemplateCommandeAdmin: "",
   conditions:
     "Annulation possible jusqu'à 48h avant l'atelier. En cas de pluie, l'atelier est maintenu en intérieur ou reporté selon les cas.",
   reglementAtelier:
@@ -708,30 +705,24 @@ const viderCorbeilleReservations = async () => {
 
   const envoyerEmails = async (r) => {
     if (!config.emailjsServiceId || !config.emailjsPublicKey || !window.emailjs) return;
-    const params = {
-      to_email: r.email,
-      parent_nom: r.nom,
-      parent_email: r.email,
-      parent_tel: r.tel || "",
-      atelier_titre: config.titre,
-      ville: r.villeNom,
-      date: r.date,
-      heure: r.heure,
-      nb_enfants: r.nbEnfants,
-      statut: r.enAttente ? "Liste d'attente" : "Confirmée",
-    };
+    const enAttente = r.enAttente;
+    const sujetClient = enAttente ? `Vous êtes en liste d'attente — ${config.titre}` : `Réservation confirmée — ${config.titre}`;
+    const corpsClient = enAttente
+      ? `Bonjour ${r.nom},<br><br>Vous êtes actuellement en liste d'attente pour l'atelier « ${config.titre} » à ${r.villeNom}, le ${r.date} à ${r.heure}, pour ${r.nbEnfants} enfant(s).<br><br>Aucune place n'est disponible pour le moment, mais nous vous recontacterons dès qu'une place se libère.<br><br>Les Mondes Cachés`
+      : `Bonjour ${r.nom},<br><br>Votre réservation pour l'atelier « ${config.titre} » est confirmée !<br><br>Date : ${r.date} à ${r.heure}<br>Lieu : ${r.villeNom}<br>Nombre d'enfants : ${r.nbEnfants}<br><br>À très bientôt,<br>Les Mondes Cachés`;
+    const sujetAdmin = `Nouvelle réservation — ${config.titre}`;
+    const corpsAdmin = `Nouvelle réservation reçue :<br><br>Statut : ${enAttente ? "Liste d'attente" : "Confirmée"}<br>Parent : ${r.nom}<br>Téléphone : ${r.tel || ""}<br>Email : ${r.email}<br>Atelier : ${config.titre}<br>Ville : ${r.villeNom}<br>Date : ${r.date} à ${r.heure}<br>Nombre d'enfants : ${r.nbEnfants}`;
+
     try {
-      const templateClient = r.enAttente && config.emailjsTemplateListeAttente ? config.emailjsTemplateListeAttente : config.emailjsTemplateParent;
-      if (templateClient) {
-        await window.emailjs.send(config.emailjsServiceId, templateClient, params, { publicKey: config.emailjsPublicKey });
+      if (config.emailjsTemplateParent) {
+        await window.emailjs.send(config.emailjsServiceId, config.emailjsTemplateParent, { to_email: r.email, sujet: sujetClient, corps: corpsClient }, { publicKey: config.emailjsPublicKey });
       }
     } catch (e) {
       console.error("Erreur envoi email parent:", e);
     }
     try {
       if (config.emailjsTemplateAdmin && config.contactEmail) {
-        await window.emailjs.send(config.emailjsServiceId, config.emailjsTemplateAdmin, { ...params, to_email: config.contactEmail }, { publicKey: config.emailjsPublicKey });
-
+        await window.emailjs.send(config.emailjsServiceId, config.emailjsTemplateAdmin, { to_email: config.contactEmail, sujet: sujetAdmin, corps: corpsAdmin }, { publicKey: config.emailjsPublicKey });
       }
     } catch (e) {
       console.error("Erreur envoi email admin:", e);
@@ -780,23 +771,22 @@ const viderCorbeilleReservations = async () => {
 
   const envoyerEmailCommande = async (c) => {
     if (!config.emailjsServiceId || !config.emailjsPublicKey || !window.emailjs) return;
-    const params = {
-      to_email: c.email,
-      parent_nom: c.nom,
-      articles_liste: c.articles.map((a) => `${a.titre} x${a.qte}`).join(", "),
-      total: formatPrix(c.total),
-      adresse: c.adresse,
-    };
+    const listeArticles = c.articles.map((a) => `${a.titre} x${a.qte}`).join(", ");
+    const sujetClient = `Confirmation de votre commande — Les Mondes Cachés`;
+    const corpsClient = `Bonjour ${c.nom},<br><br>Votre commande a bien été enregistrée et sera préparée avec soin.<br><br>Articles : ${listeArticles}<br>Total : ${formatPrix(c.total)}<br>Adresse d'envoi : ${c.adresse}<br><br>Merci pour votre confiance,<br>Les Mondes Cachés`;
+    const sujetAdmin = `Nouvelle commande boutique`;
+    const corpsAdmin = `Nouvelle commande reçue :<br><br>Client : ${c.nom}<br>Téléphone : ${c.tel || ""}<br>Email : ${c.email}<br>Adresse : ${c.adresse}<br>Articles : ${listeArticles}<br>Total : ${formatPrix(c.total)}`;
+
     try {
-      if (config.emailjsTemplateCommandeParent) {
-        await window.emailjs.send(config.emailjsServiceId, config.emailjsTemplateCommandeParent, params, { publicKey: config.emailjsPublicKey });
+      if (config.emailjsTemplateParent) {
+        await window.emailjs.send(config.emailjsServiceId, config.emailjsTemplateParent, { to_email: c.email, sujet: sujetClient, corps: corpsClient }, { publicKey: config.emailjsPublicKey });
       }
     } catch (e) {
       console.error("Erreur envoi email commande (client):", e);
     }
     try {
-      if (config.emailjsTemplateCommandeAdmin && config.contactEmail) {
-        await window.emailjs.send(config.emailjsServiceId, config.emailjsTemplateCommandeAdmin, { ...params, to_email: config.contactEmail }, { publicKey: config.emailjsPublicKey });
+      if (config.emailjsTemplateAdmin && config.contactEmail) {
+        await window.emailjs.send(config.emailjsServiceId, config.emailjsTemplateAdmin, { to_email: config.contactEmail, sujet: sujetAdmin, corps: corpsAdmin }, { publicKey: config.emailjsPublicKey });
       }
     } catch (e) {
       console.error("Erreur envoi email commande (admin):", e);
@@ -2344,10 +2334,7 @@ function AdminPanel({
   const [emailjsServiceId, setEmailjsServiceId] = useState(config.emailjsServiceId || "");
   const [emailjsPublicKey, setEmailjsPublicKey] = useState(config.emailjsPublicKey || "");
   const [emailjsTemplateParent, setEmailjsTemplateParent] = useState(config.emailjsTemplateParent || "");
-  const [emailjsTemplateListeAttente, setEmailjsTemplateListeAttente] = useState(config.emailjsTemplateListeAttente || "");
   const [emailjsTemplateAdmin, setEmailjsTemplateAdmin] = useState(config.emailjsTemplateAdmin || "");
-  const [emailjsTemplateCommandeParent, setEmailjsTemplateCommandeParent] = useState(config.emailjsTemplateCommandeParent || "");
-  const [emailjsTemplateCommandeAdmin, setEmailjsTemplateCommandeAdmin] = useState(config.emailjsTemplateCommandeAdmin || "");
   const [conditions, setConditions] = useState(config.conditions || "");
   const [motAccueil, setMotAccueil] = useState(config.motAccueil || "");
   const [etapeAvantTitre, setEtapeAvantTitre] = useState(config.etapeAvantTitre || "");
@@ -2395,8 +2382,7 @@ function AdminPanel({
     onSaveConfig({
       eyebrowAtelier, titre, description, prix: Number(prix) || 0, lienPaiement: lienPaiement.trim(), logoImage,
       ageRange, duree, contactEmail, contactTel, paypalEmail: paypalEmail.trim(), fraisPort: Number(fraisPort) || 0, conditions, motAccueil, etapeAvantTitre, etapeAvant, etapePendantTitre, etapePendant, etapeApresTitre, etapeApres, motAccueilBoutique, messageAucunCreneau, noticeRetractation, noticeRetractationBoutique, reglementAtelier, mentionsLegales, faq,
-      emailjsServiceId: emailjsServiceId.trim(), emailjsPublicKey: emailjsPublicKey.trim(), emailjsTemplateParent: emailjsTemplateParent.trim(), emailjsTemplateListeAttente: emailjsTemplateListeAttente.trim(), emailjsTemplateAdmin: emailjsTemplateAdmin.trim(),
-      emailjsTemplateCommandeParent: emailjsTemplateCommandeParent.trim(), emailjsTemplateCommandeAdmin: emailjsTemplateCommandeAdmin.trim(),
+      emailjsServiceId: emailjsServiceId.trim(), emailjsPublicKey: emailjsPublicKey.trim(), emailjsTemplateParent: emailjsTemplateParent.trim(), emailjsTemplateAdmin: emailjsTemplateAdmin.trim(),
       ...overrides,
     });
   };
@@ -2504,27 +2490,24 @@ function AdminPanel({
         </h3>
         <p className="text-xs mb-4" style={{ color: "#8A7A56" }}>
           Renseigne ici les identifiants de ton compte EmailJS (voir le guide) pour qu'un
-          email de confirmation soit envoyé au parent, et un email de notification à toi,
-          à chaque nouvelle réservation ou commande. Tant que ces champs sont vides, aucun
-          email n'est envoyé.
+          email de confirmation soit envoyé au client/parent, et un email de notification à
+          toi, à chaque nouvelle réservation, inscription en liste d'attente ou commande. Tant
+          que ces champs sont vides, aucun email n'est envoyé.
         </p>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <Field label="Service ID EmailJS"><input className="lmc-input" value={emailjsServiceId} onChange={(e) => setEmailjsServiceId(e.target.value)} placeholder="service_xxxxx" /></Field>
             <Field label="Public Key EmailJS"><input className="lmc-input" value={emailjsPublicKey} onChange={(e) => setEmailjsPublicKey(e.target.value)} placeholder="xxxxxxxxxxxxx" /></Field>
           </div>
-          <p className="text-xs font-semibold" style={{ color: "#2B4433" }}>Ateliers</p>
+          <p className="text-xs" style={{ color: "#8A7A56" }}>
+            Ces deux templates sont génériques et servent à tout (ateliers ET boutique, réservation
+            confirmée ET liste d'attente) — le site construit lui-même le texte complet (sujet + contenu),
+            le template n'a qu'à afficher <code>{"{{sujet}}"}</code> et <code>{"{{corps}}"}</code>.
+            Plus besoin d'en créer un nouveau pour une future fonctionnalité.
+          </p>
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Template ID (email au parent — réservation confirmée)"><input className="lmc-input" value={emailjsTemplateParent} onChange={(e) => setEmailjsTemplateParent(e.target.value)} placeholder="template_xxxxx" /></Field>
-            <Field label="Template ID (email à toi)"><input className="lmc-input" value={emailjsTemplateAdmin} onChange={(e) => setEmailjsTemplateAdmin(e.target.value)} placeholder="template_xxxxx" /></Field>
-          </div>
-          <Field label="Template ID (email au parent — liste d'attente, laisser vide pour réutiliser le template ci-dessus)">
-            <input className="lmc-input" value={emailjsTemplateListeAttente} onChange={(e) => setEmailjsTemplateListeAttente(e.target.value)} placeholder="template_xxxxx" />
-          </Field>
-          <p className="text-xs font-semibold" style={{ color: "#2B4433" }}>Boutique</p>
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Template ID (email au client)"><input className="lmc-input" value={emailjsTemplateCommandeParent} onChange={(e) => setEmailjsTemplateCommandeParent(e.target.value)} placeholder="template_xxxxx" /></Field>
-            <Field label="Template ID (email à toi)"><input className="lmc-input" value={emailjsTemplateCommandeAdmin} onChange={(e) => setEmailjsTemplateCommandeAdmin(e.target.value)} placeholder="template_xxxxx" /></Field>
+            <Field label="Template ID (email au client/parent — générique)"><input className="lmc-input" value={emailjsTemplateParent} onChange={(e) => setEmailjsTemplateParent(e.target.value)} placeholder="template_xxxxx" /></Field>
+            <Field label="Template ID (email à toi — générique)"><input className="lmc-input" value={emailjsTemplateAdmin} onChange={(e) => setEmailjsTemplateAdmin(e.target.value)} placeholder="template_xxxxx" /></Field>
           </div>
           <p className="text-xs" style={{ color: "#8A7A56" }}>
             L'email de notification pour toi sera envoyé à l'adresse renseignée dans
