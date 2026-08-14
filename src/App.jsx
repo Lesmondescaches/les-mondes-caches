@@ -708,10 +708,10 @@ const viderCorbeilleReservations = async () => {
     const enAttente = r.enAttente;
     const sujetClient = enAttente ? `Vous êtes en liste d'attente — ${config.titre}` : `Réservation confirmée — ${config.titre}`;
     const corpsClient = enAttente
-      ? `Bonjour ${r.nom},<br><br>Vous êtes actuellement en liste d'attente pour l'atelier « ${config.titre} » à ${r.villeNom}, le ${r.date} à ${r.heure}, pour ${r.nbEnfants} enfant(s).<br><br>Aucune place n'est disponible pour le moment, mais nous vous recontacterons dès qu'une place se libère.<br><br>Les Mondes Cachés`
-      : `Bonjour ${r.nom},<br><br>Votre réservation pour l'atelier « ${config.titre} » est confirmée !<br><br>Date : ${r.date} à ${r.heure}<br>Lieu : ${r.villeNom}<br>Nombre d'enfants : ${r.nbEnfants}<br><br>À très bientôt,<br>Les Mondes Cachés`;
+      ? `Bonjour ${r.nom},\n\nVous êtes actuellement en liste d'attente pour l'atelier « ${config.titre} » à ${r.villeNom}, le ${r.date} à ${r.heure}, pour ${r.nbEnfants} enfant(s).\n\nAucune place n'est disponible pour le moment, mais nous vous recontacterons dès qu'une place se libère.\n\nLes Mondes Cachés`
+      : `Bonjour ${r.nom},\n\nVotre réservation pour l'atelier « ${config.titre} » est confirmée !\n\nDate : ${r.date} à ${r.heure}\nLieu : ${r.villeNom}\nNombre d'enfants : ${r.nbEnfants}\n\nÀ très bientôt,\nLes Mondes Cachés`;
     const sujetAdmin = `Nouvelle réservation — ${config.titre}`;
-    const corpsAdmin = `Nouvelle réservation reçue :<br><br>Statut : ${enAttente ? "Liste d'attente" : "Confirmée"}<br>Parent : ${r.nom}<br>Téléphone : ${r.tel || ""}<br>Email : ${r.email}<br>Atelier : ${config.titre}<br>Ville : ${r.villeNom}<br>Date : ${r.date} à ${r.heure}<br>Nombre d'enfants : ${r.nbEnfants}`;
+    const corpsAdmin = `Nouvelle réservation reçue :\n\nStatut : ${enAttente ? "Liste d'attente" : "Confirmée"}\nParent : ${r.nom}\nTéléphone : ${r.tel || ""}\nEmail : ${r.email}\nAtelier : ${config.titre}\nVille : ${r.villeNom}\nDate : ${r.date} à ${r.heure}\nNombre d'enfants : ${r.nbEnfants}`;
 
     try {
       if (config.emailjsTemplateParent) {
@@ -773,9 +773,9 @@ const viderCorbeilleReservations = async () => {
     if (!config.emailjsServiceId || !config.emailjsPublicKey || !window.emailjs) return;
     const listeArticles = c.articles.map((a) => `${a.titre} x${a.qte}`).join(", ");
     const sujetClient = `Confirmation de votre commande — Les Mondes Cachés`;
-    const corpsClient = `Bonjour ${c.nom},<br><br>Votre commande a bien été enregistrée et sera préparée avec soin.<br><br>Articles : ${listeArticles}<br>Total : ${formatPrix(c.total)}<br>Adresse d'envoi : ${c.adresse}<br><br>Merci pour votre confiance,<br>Les Mondes Cachés`;
+    const corpsClient = `Bonjour ${c.nom},\n\nVotre commande a bien été enregistrée et sera préparée avec soin.\n\nArticles : ${listeArticles}\nTotal : ${formatPrix(c.total)}\nAdresse d'envoi : ${c.adresse}\n\nMerci pour votre confiance,\nLes Mondes Cachés`;
     const sujetAdmin = `Nouvelle commande boutique`;
-    const corpsAdmin = `Nouvelle commande reçue :<br><br>Client : ${c.nom}<br>Téléphone : ${c.tel || ""}<br>Email : ${c.email}<br>Adresse : ${c.adresse}<br>Articles : ${listeArticles}<br>Total : ${formatPrix(c.total)}`;
+    const corpsAdmin = `Nouvelle commande reçue :\n\nClient : ${c.nom}\nTéléphone : ${c.tel || ""}\nEmail : ${c.email}\nAdresse : ${c.adresse}\nArticles : ${listeArticles}\nTotal : ${formatPrix(c.total)}`;
 
     try {
       if (config.emailjsTemplateParent) {
