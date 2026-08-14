@@ -112,6 +112,17 @@ const FONT_STYLE = `
 .lmc-pop-in {
   animation: lmc-pop-in 0.75s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
+.lmc-btn-hover {
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+.lmc-btn-hover:hover {
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 6px 14px rgba(43,68,51,0.18);
+  filter: brightness(1.06);
+}
+.lmc-btn-hover:active {
+  transform: translateY(0) scale(0.97);
+}
 @keyframes lmc-halo {
   0% { transform: scale(0.4); opacity: 0.6; }
   100% { transform: scale(3.2); opacity: 0; }
@@ -771,6 +782,17 @@ const viderCorbeilleReservations = async () => {
     }
   };
 
+  const definirFamillesAccueillies = async (valeur) => {
+    try {
+      const maj = { ...stats, famillesAccueillies: Math.max(0, Number(valeur) || 0) };
+      const { error: err } = await supabase.from("kv_store").upsert({ key: "stats", value: JSON.stringify(maj) });
+      if (err) throw err;
+      setStats(maj);
+    } catch (e) {
+      console.error("Erreur mise à jour compteur familles:", e);
+    }
+  };
+
   const ajouterAuPanier = (produit, qte = 1) => {
     setPanier((prev) => {
       const trouve = prev.find((i) => i.id === produit.id);
@@ -1155,14 +1177,14 @@ const viderCorbeilleReservations = async () => {
             <div className="flex items-center gap-2 mt-6">
               <button
                 onClick={() => setView("parent")}
-                className="text-xs font-semibold px-4 py-2 rounded-full transition-colors"
+                className="lmc-btn-hover text-xs font-semibold px-4 py-2 rounded-full transition-colors"
                 style={view === "parent" ? { background: "#E8B94A", color: "#2B2118" } : { background: "rgba(247,236,216,0.12)", color: "#F7ECD8", border: "1px solid rgba(232,185,74,0.4)" }}
               >
                 Ateliers
               </button>
               <button
                 onClick={() => setView("boutique")}
-                className="text-xs font-semibold px-4 py-2 rounded-full transition-colors"
+                className="lmc-btn-hover text-xs font-semibold px-4 py-2 rounded-full transition-colors"
                 style={view === "boutique" ? { background: "#E8B94A", color: "#2B2118" } : { background: "rgba(247,236,216,0.12)", color: "#F7ECD8", border: "1px solid rgba(232,185,74,0.4)" }}
               >
                 Boutique
@@ -1196,6 +1218,7 @@ const viderCorbeilleReservations = async () => {
         ) : view === "admin" ? (
           <AdminPanel
             config={config} villes={villes} reservations={reservations} produits={produits} commandes={commandes}
+            stats={stats} onDefinirFamillesAccueillies={definirFamillesAccueillies}
             onSaveConfig={persistConfig} onAddVille={addVille} onRemoveVille={removeVille}
             onAddSession={addSession} onRemoveSession={removeSession} onAjusterPlaces={ajusterPlacesSession} onClose={seDeconnecter} onChangePassword={changerMotDePasse}
           onSupprimerReservation={supprimerReservation}
@@ -1253,7 +1276,7 @@ onSupprimerAvis={supprimerAvis}
             <div className="flex gap-3">
               <button
                 onClick={() => setConfirmationOuverte(false)}
-                className="flex-1 font-semibold py-3 rounded-full border"
+                className="lmc-btn-hover flex-1 font-semibold py-3 rounded-full border"
                 style={{ borderColor: "#DCC79C", color: "#5C4A3A" }}
               >
                 Non, modifier
@@ -1261,7 +1284,7 @@ onSupprimerAvis={supprimerAvis}
               <button
                 onClick={confirmBooking}
                 disabled={saving}
-                className="flex-1 font-semibold py-3 rounded-full disabled:opacity-60"
+                className="lmc-btn-hover flex-1 font-semibold py-3 rounded-full disabled:opacity-60"
                 style={{ background: "#2B4433", color: "#F7ECD8" }}
               >
                 Oui, confirmer
@@ -1280,7 +1303,7 @@ onSupprimerAvis={supprimerAvis}
             <p className="text-sm mb-6" style={{ color: "#5C4A3A" }}>{alerteMessage}</p>
             <button
               onClick={() => setAlerteMessage("")}
-              className="w-full font-semibold py-3 rounded-full"
+              className="lmc-btn-hover w-full font-semibold py-3 rounded-full"
               style={{ background: "#2B4433", color: "#F7ECD8" }}
             >
               Compris
@@ -1527,13 +1550,13 @@ function AvisSection({ avisPublics, onEnvoyerAvis }) {
           {erreur && <p className="text-xs mt-2 font-medium" style={{ color: "#B5744A" }}>{erreur}</p>}
           <div className="flex gap-2 mt-4">
             <button onClick={() => setOuvert(false)} className="text-sm font-medium px-4 py-2 rounded-full border" style={{ borderColor: "#DCC79C", color: "#5C4A3A" }}>Annuler</button>
-            <button onClick={soumettre} disabled={envoi} className="text-sm font-semibold px-4 py-2 rounded-full disabled:opacity-60" style={{ background: "#2B4433", color: "#F7ECD8" }}>
+            <button onClick={soumettre} disabled={envoi} className="lmc-btn-hover text-sm font-semibold px-4 py-2 rounded-full disabled:opacity-60" style={{ background: "#2B4433", color: "#F7ECD8" }}>
               {envoi ? "Envoi…" : "Envoyer"}
             </button>
           </div>
         </div>
       ) : (
-        <button onClick={() => setOuvert(true)} className="text-sm font-semibold px-5 py-2.5 rounded-full" style={{ background: "#E8B94A", color: "#2B2118" }}>
+        <button onClick={() => setOuvert(true)} className="lmc-btn-hover text-sm font-semibold px-5 py-2.5 rounded-full" style={{ background: "#E8B94A", color: "#2B2118" }}>
           Partager un avis
         </button>
       )}
@@ -1554,9 +1577,7 @@ function ParentFlow({
     const enAttente = selectedSession?.placesRestantes <= 0;
     return (
       <div className="text-center py-10">
-        <div className="w-16 h-16 rounded-full text-[#F7ECD8] flex items-center justify-center mx-auto mb-6" style={{ background: "#2B4433" }}>
-          <Check size={28} />
-        </div>
+        <EclatCelebration />
         <h2 className="lmc-display text-4xl mb-2" style={{ color: "#2B4433" }}>
           {enAttente ? "Vous êtes sur la liste d'attente" : "Réservation enregistrée"}
         </h2>
@@ -1664,7 +1685,7 @@ function ParentFlow({
           </div>
         )}
 
-        <button onClick={onConfirm} disabled={saving} className="mt-4 w-full font-semibold py-3 rounded-full transition-colors disabled:opacity-60 flex items-center justify-center gap-2" style={{ background: complet ? "#8A5A26" : "#2B4433", color: "#F7ECD8" }}>
+        <button onClick={onConfirm} disabled={saving} className="lmc-btn-hover mt-4 w-full font-semibold py-3 rounded-full transition-colors disabled:opacity-60 flex items-center justify-center gap-2" style={{ background: complet ? "#8A5A26" : "#2B4433", color: "#F7ECD8" }}>
           {saving ? <Loader2 className="animate-spin" size={18} /> : null}
           {complet ? "Rejoindre la liste d'attente" : "Confirmer la réservation"}
         </button>
@@ -1681,7 +1702,7 @@ function ParentFlow({
         <MotAccueil texte={config.motAccueil} />
         {famillesAccueillies > 0 && (
           <p className="text-center text-xs mt-3 font-medium" style={{ color: "#8A7A56" }}>
-            🌿 Déjà {famillesAccueillies} famille{famillesAccueillies > 1 ? "s" : ""} accueillie{famillesAccueillies > 1 ? "s" : ""} dans nos mondes cachés
+            🌿 Déjà {famillesAccueillies} famille{famillesAccueillies > 1 ? "s" : ""} {famillesAccueillies > 1 ? "ont" : "a"} rejoint Les Mondes Cachés
           </p>
         )}
       </div>
@@ -1715,7 +1736,7 @@ function ParentFlow({
                       </div>
                       {session.note && <p className="text-xs italic mt-1" style={{ color: "#8A7A56" }}>{session.note}</p>}
                     </div>
-                    <button onClick={() => onStartBooking(villeUnique, session)} className="text-sm font-semibold px-4 py-2 rounded-full transition-colors" style={{ background: complet ? "#E4D4B8" : "#E8B94A", color: "#2B2118" }}>
+                    <button onClick={() => onStartBooking(villeUnique, session)} className="lmc-btn-hover text-sm font-semibold px-4 py-2 rounded-full transition-colors" style={{ background: complet ? "#E4D4B8" : "#E8B94A", color: "#2B2118" }}>
                       {complet ? "Liste d'attente" : "Réserver"}
                     </button>
                   </div>
@@ -1734,7 +1755,7 @@ function ParentFlow({
                   const active = selectedVille?.id === ville.id;
                   const dispo = ville.sessions.filter((s) => s.placesRestantes > 0).length;
                   return (
-                    <button key={ville.id} onClick={() => onSelectVille(active ? null : ville)} className="text-left p-5 rounded-2xl border-2 transition-all relative overflow-hidden" style={active ? { borderColor: "#2B4433", background: "#2B4433", color: "#F7ECD8" } : { borderColor: "#DCC79C", background: "#FBF3E3", color: "#2B4433" }}>
+                    <button key={ville.id} onClick={() => onSelectVille(active ? null : ville)} className="lmc-btn-hover text-left p-5 rounded-2xl border-2 transition-all relative overflow-hidden" style={active ? { borderColor: "#2B4433", background: "#2B4433", color: "#F7ECD8" } : { borderColor: "#DCC79C", background: "#FBF3E3", color: "#2B4433" }}>
                       <LeafCorner className="absolute bottom-1 left-1 opacity-70" flip />
                       <div className="flex items-center gap-2 font-semibold"><MapPin size={16} /> {ville.nom}</div>
                       <div className="text-sm mt-1 font-medium" style={{ color: active ? "#CFE0C8" : "#8A7A56" }}>
@@ -1769,7 +1790,7 @@ function ParentFlow({
                           </div>
                           {session.note && <p className="text-xs italic mt-1" style={{ color: "#8A7A56" }}>{session.note}</p>}
                         </div>
-                        <button onClick={() => onStartBooking(selectedVille, session)} className="text-sm font-semibold px-4 py-2 rounded-full transition-colors" style={{ background: complet ? "#E4D4B8" : "#E8B94A", color: "#2B2118" }}>
+                        <button onClick={() => onStartBooking(selectedVille, session)} className="lmc-btn-hover text-sm font-semibold px-4 py-2 rounded-full transition-colors" style={{ background: complet ? "#E4D4B8" : "#E8B94A", color: "#2B2118" }}>
                           {complet ? "Liste d'attente" : "Réserver"}
                         </button>
                       </div>
@@ -1846,7 +1867,7 @@ function BoutiquePage({ produits, onOpenProduit, onAjouterPanier }) {
           <div className="flex flex-wrap gap-2 mb-6">
             <button
               onClick={() => setFiltre("tous")}
-              className="text-xs font-semibold px-3 py-1.5 rounded-full transition-colors"
+              className="lmc-btn-hover text-xs font-semibold px-3 py-1.5 rounded-full transition-colors"
               style={filtre === "tous" ? { background: "#2B4433", color: "#F7ECD8" } : { background: "#F3E3CB", color: "#5C4A3A" }}
             >
               Tout
@@ -1855,7 +1876,7 @@ function BoutiquePage({ produits, onOpenProduit, onAjouterPanier }) {
               <button
                 key={c}
                 onClick={() => setFiltre(c)}
-                className="text-xs font-semibold px-3 py-1.5 rounded-full transition-colors"
+                className="lmc-btn-hover text-xs font-semibold px-3 py-1.5 rounded-full transition-colors"
                 style={filtre === c ? { background: "#2B4433", color: "#F7ECD8" } : { background: "#F3E3CB", color: "#5C4A3A" }}
               >
                 {c}
@@ -1909,13 +1930,13 @@ function BoutiquePage({ produits, onOpenProduit, onAjouterPanier }) {
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-bold" style={{ color: "#2B4433" }}>{formatPrix(p.prix)}</span>
                       <div className="flex gap-2">
-                        <button onClick={() => onOpenProduit(p)} className="text-xs font-semibold px-3 py-2 rounded-full border" style={{ borderColor: "#DCC79C", color: "#5C4A3A" }}>
+                        <button onClick={() => onOpenProduit(p)} className="lmc-btn-hover text-xs font-semibold px-3 py-2 rounded-full border" style={{ borderColor: "#DCC79C", color: "#5C4A3A" }}>
                           Découvrir
                         </button>
                         <button
                           onClick={() => onAjouterPanier(p, 1)}
                           disabled={enRupture(p)}
-                          className="text-xs font-semibold px-3 py-2 rounded-full disabled:opacity-40"
+                          className="lmc-btn-hover text-xs font-semibold px-3 py-2 rounded-full disabled:opacity-40"
                           style={{ background: "#E8B94A", color: "#2B2118" }}
                         >
                           Ajouter
@@ -2007,11 +2028,11 @@ function ProduitModal({ produit, onClose, onAjouter }) {
             <span className="text-xl font-bold" style={{ color: "#2B4433" }}>{formatPrix(produit.prix)}</span>
             {!enRupture(produit) && (
               <div className="flex items-center gap-2">
-                <button onClick={() => setQte((q) => Math.max(1, q - 1))} className="w-7 h-7 rounded-full border flex items-center justify-center" style={{ borderColor: "#DCC79C" }}><Minus size={14} /></button>
+                <button onClick={() => setQte((q) => Math.max(1, q - 1))} className="lmc-btn-hover w-7 h-7 rounded-full border flex items-center justify-center" style={{ borderColor: "#DCC79C" }}><Minus size={14} /></button>
                 <span className="font-semibold w-4 text-center">{qte}</span>
                 <button
                   onClick={() => setQte((q) => (stockLimite(produit) ? Math.min(Number(produit.stock), q + 1) : q + 1))}
-                  className="w-7 h-7 rounded-full border flex items-center justify-center"
+                  className="lmc-btn-hover w-7 h-7 rounded-full border flex items-center justify-center"
                   style={{ borderColor: "#DCC79C" }}
                 >
                   <Plus size={14} />
@@ -2022,7 +2043,7 @@ function ProduitModal({ produit, onClose, onAjouter }) {
           <button
             onClick={() => onAjouter(qte)}
             disabled={enRupture(produit)}
-            className="w-full font-semibold py-3 rounded-full transition-colors disabled:opacity-40"
+            className="lmc-btn-hover w-full font-semibold py-3 rounded-full transition-colors disabled:opacity-40"
             style={{ background: "#2B4433", color: "#F7ECD8" }}
           >
             {enRupture(produit) ? "Rupture de stock" : "Ajouter au panier"}
@@ -2064,9 +2085,9 @@ function PanierDrawer({ ouvert, panier, fraisPort, onFermer, onChangerQte, onRet
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold text-sm truncate" style={{ color: "#2B4433" }}>{i.titre}</div>
                     <div className="flex items-center gap-2 mt-1">
-                      <button onClick={() => onChangerQte(i.id, i.qte - 1)} className="w-6 h-6 rounded-full border flex items-center justify-center" style={{ borderColor: "#DCC79C" }}><Minus size={12} /></button>
+                      <button onClick={() => onChangerQte(i.id, i.qte - 1)} className="lmc-btn-hover w-6 h-6 rounded-full border flex items-center justify-center" style={{ borderColor: "#DCC79C" }}><Minus size={12} /></button>
                       <span className="text-sm w-4 text-center">{i.qte}</span>
-                      <button onClick={() => onChangerQte(i.id, i.qte + 1)} className="w-6 h-6 rounded-full border flex items-center justify-center" style={{ borderColor: "#DCC79C" }}><Plus size={12} /></button>
+                      <button onClick={() => onChangerQte(i.id, i.qte + 1)} className="lmc-btn-hover w-6 h-6 rounded-full border flex items-center justify-center" style={{ borderColor: "#DCC79C" }}><Plus size={12} /></button>
                       <button onClick={() => onRetirer(i.id)} className="ml-auto text-xs" style={{ color: "#B5744A" }}><Trash2 size={14} /></button>
                     </div>
                   </div>
@@ -2093,7 +2114,7 @@ function PanierDrawer({ ouvert, panier, fraisPort, onFermer, onChangerQte, onRet
           <button
             onClick={onCommander}
             disabled={panier.length === 0}
-            className="w-full text-center text-sm font-semibold py-2.5 rounded-full disabled:opacity-50"
+            className="lmc-btn-hover w-full text-center text-sm font-semibold py-2.5 rounded-full disabled:opacity-50"
             style={{ background: "#E8B94A", color: "#2B2118" }}
           >
             Valider ma commande
@@ -2245,7 +2266,7 @@ function CommandeModal({ panier, fraisPort, noticeRetractation, paypalEmail, onC
             </div>
             {erreur && <p className="text-xs mt-2 font-medium" style={{ color: "#B5744A" }}>{erreur}</p>}
             {noticeRetractation && <p className="text-xs mt-4 leading-relaxed" style={{ color: "#8A7A56" }}>{noticeRetractation}</p>}
-            <button onClick={continuer} className="w-full mt-4 font-semibold py-3 rounded-full transition-colors" style={{ background: "#2B4433", color: "#F7ECD8" }}>
+            <button onClick={continuer} className="lmc-btn-hover w-full mt-4 font-semibold py-3 rounded-full transition-colors" style={{ background: "#2B4433", color: "#F7ECD8" }}>
               Continuer vers le paiement
             </button>
           </>
@@ -2270,7 +2291,7 @@ function CommandeModal({ panier, fraisPort, noticeRetractation, paypalEmail, onC
             </div>
 
             {paypalEmail ? (
-              <button onClick={payerLePanier} className="w-full text-center text-sm font-semibold py-3 rounded-full" style={{ background: "#E8B94A", color: "#2B2118" }}>
+              <button onClick={payerLePanier} className="lmc-btn-hover w-full text-center text-sm font-semibold py-3 rounded-full" style={{ background: "#E8B94A", color: "#2B2118" }}>
                 Payer {formatPrix(total)} avec PayPal
               </button>
             ) : (
@@ -2444,12 +2465,12 @@ function exportCommandesCSV(commandes) {
 }
 
 function AdminPanel({
-  config, villes, reservations, produits, commandes,
+  config, villes, reservations, produits, commandes, stats,
   onSaveConfig, onAddVille, onRemoveVille, onAddSession, onRemoveSession, onAjusterPlaces, onClose, onChangePassword,
   onSupprimerReservation, onRestaurerReservation, onBasculerContacte, onViderCorbeilleReservations, voirCorbeille, onToggleCorbeille,
   onSaveProduit, onRemoveProduit,
   onSupprimerCommande, onRestaurerCommande, onViderCorbeilleCommandes, voirCorbeilleCommandes, onToggleCorbeilleCommandes,
-  avisAdmin, onValiderAvis, onDepublierAvis, onSupprimerAvis,
+  avisAdmin, onValiderAvis, onDepublierAvis, onSupprimerAvis, onDefinirFamillesAccueillies,
 }) {
  
   const [eyebrowAtelier, setEyebrowAtelier] = useState(config.eyebrowAtelier || "");
@@ -2465,6 +2486,7 @@ function AdminPanel({
   const [contactEmail, setContactEmail] = useState(config.contactEmail || "");
   const [contactTel, setContactTel] = useState(config.contactTel || "");
   const [paypalEmail, setPaypalEmail] = useState(config.paypalEmail || "");
+  const [nouveauCompteur, setNouveauCompteur] = useState(stats?.famillesAccueillies ?? 0);
   const [fraisPort, setFraisPort] = useState(config.fraisPort ?? 4.9);
   const [emailjsServiceId, setEmailjsServiceId] = useState(config.emailjsServiceId || "");
   const [emailjsPublicKey, setEmailjsPublicKey] = useState(config.emailjsPublicKey || "");
@@ -2806,6 +2828,28 @@ function AdminPanel({
           <input type="number" step="0.1" className="lmc-input" value={fraisPort} onChange={(e) => setFraisPort(parseFloat(e.target.value) || 0)} />
         </Field>
         <button onClick={() => saveAll()} className="text-sm font-semibold px-5 py-2.5 rounded-full transition-colors mt-3" style={{ background: "#2B4433", color: "#F7ECD8" }}>Enregistrer</button>
+      </section>
+
+      <section className="rounded-2xl border p-6 mb-6" style={{ background: "#FBF3E3", borderColor: "#DCC79C" }}>
+        <h3 className="font-semibold mb-2 flex items-center gap-2" style={{ color: "#2B4433" }}>
+          <Leaf size={16} /> Compteur « familles accueillies »
+        </h3>
+        <p className="text-xs mb-4" style={{ color: "#8A7A56" }}>
+          Affiché sur la page d'accueil dès qu'il dépasse 0. Il augmente automatiquement à
+          chaque réservation confirmée — mais tu peux le remettre à zéro (par exemple après
+          des tests) ou le régler manuellement à tout moment ici.
+        </p>
+        <div className="flex items-end gap-3">
+          <Field label={`Valeur actuelle : ${stats?.famillesAccueillies ?? 0}`}>
+            <input type="number" min="0" className="lmc-input" value={nouveauCompteur} onChange={(e) => setNouveauCompteur(e.target.value)} />
+          </Field>
+          <button onClick={() => onDefinirFamillesAccueillies(nouveauCompteur)} className="shrink-0 text-sm font-semibold px-5 py-2.5 rounded-full transition-colors" style={{ background: "#2B4433", color: "#F7ECD8" }}>
+            Enregistrer
+          </button>
+          <button onClick={() => { setNouveauCompteur(0); onDefinirFamillesAccueillies(0); }} className="shrink-0 text-sm font-semibold px-5 py-2.5 rounded-full transition-colors" style={{ background: "#F3E3CB", color: "#8A5A26" }}>
+            Remettre à zéro
+          </button>
+        </div>
       </section>
 
       <section className="rounded-2xl border p-6 mb-6" style={{ background: "#FBF3E3", borderColor: "#DCC79C" }}>
