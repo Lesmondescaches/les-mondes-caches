@@ -306,6 +306,7 @@ export default function LesMondesCaches() {
               await insertReservation(reservation);
               if (!reservation.enAttente) {
                 await decrementerPlaceSession(reservation.villeId, reservation.sessionId, reservation.nbEnfants);
+                await incrementerFamillesAccueillies();
               }
             }
             localStorage.removeItem("lmc_reservations_pending");
@@ -340,6 +341,7 @@ export default function LesMondesCaches() {
 
   const [config, setConfig] = useState(DEFAULT_CONFIG);
   const [villes, setVilles] = useState([]);
+  const [stats, setStats] = useState({ famillesAccueillies: 0 });
   const [reservations, setReservations] = useState([]);
 const [voirCorbeille, setVoirCorbeille] = useState(false);
   const [produits, setProduits] = useState([]);
@@ -563,12 +565,13 @@ const viderCorbeilleReservations = async () => {
       const { data, error: err } = await supabase
         .from("kv_store")
         .select("key, value")
-        .in("key", ["config", "villes", "produits"]);
+        .in("key", ["config", "villes", "produits", "stats"]);
       if (err) throw err;
       const map = Object.fromEntries((data || []).map((row) => [row.key, row.value]));
       setConfig(map.config ? { ...DEFAULT_CONFIG, ...JSON.parse(map.config) } : DEFAULT_CONFIG);
       setVilles(map.villes ? JSON.parse(map.villes) : []);
       setProduits(map.produits ? JSON.parse(map.produits) : []);
+      setStats(map.stats ? JSON.parse(map.stats) : { famillesAccueillies: 0 });
     } catch (e) {
       console.error("Erreur de chargement Supabase:", e);
       setError("Impossible de charger les données.");
@@ -679,6 +682,19 @@ const viderCorbeilleReservations = async () => {
       setVilles(maj);
     } catch (e) {
       console.error("Erreur décrément places:", e);
+    }
+  };
+
+  const incrementerFamillesAccueillies = async () => {
+    try {
+      const { data, error: err } = await supabase.from("kv_store").select("value").eq("key", "stats").single();
+      const actuel = !err && data?.value ? JSON.parse(data.value) : { famillesAccueillies: 0 };
+      const maj = { ...actuel, famillesAccueillies: (Number(actuel.famillesAccueillies) || 0) + 1 };
+      const { error: err2 } = await supabase.from("kv_store").upsert({ key: "stats", value: JSON.stringify(maj) });
+      if (err2) throw err2;
+      setStats(maj);
+    } catch (e) {
+      console.error("Erreur incrément compteur familles:", e);
     }
   };
 
@@ -1143,7 +1159,7 @@ onSupprimerAvis={supprimerAvis}
             form={form} setForm={setForm} saving={saving} openFaq={openFaq} setOpenFaq={setOpenFaq}
             onSelectVille={setSelectedVille} onStartBooking={startBooking} onConfirm={verifierAvantConfirmation}
             onReset={resetParcours} onBack={() => setStep("choix")}
-            avisPublics={avisPublics} onEnvoyerAvis={envoyerAvis}
+            avisPublics={avisPublics} onEnvoyerAvis={envoyerAvis} famillesAccueillies={stats.famillesAccueillies}
           />
         )}
       </main>
@@ -1458,7 +1474,7 @@ function AvisSection({ avisPublics, onEnvoyerAvis }) {
 
 function ParentFlow({
   config, villes, step, selectedVille, selectedSession, form, setForm, saving, openFaq, setOpenFaq,
-  onSelectVille, onStartBooking, onConfirm, onReset, onBack, avisPublics, onEnvoyerAvis,
+  onSelectVille, onStartBooking, onConfirm, onReset, onBack, avisPublics, onEnvoyerAvis, famillesAccueillies,
 }) {
   const villesAvecSessions = villes.filter((v) => v.sessions.length > 0);
 
@@ -1594,6 +1610,11 @@ function ParentFlow({
       {/* Mot d'accueil, modifiable selon la saison */}
       <div className="mb-10">
         <MotAccueil texte={config.motAccueil} />
+        {famillesAccueillies > 0 && (
+          <p className="text-center text-xs mt-3 font-medium" style={{ color: "#8A7A56" }}>
+            🌿 Déjà {famillesAccueillies} famille{famillesAccueillies > 1 ? "s" : ""} accueillie{famillesAccueillies > 1 ? "s" : ""} dans nos mondes cachés
+          </p>
+        )}
       </div>
 
       <EtapesAtelier
@@ -1609,6 +1630,7 @@ function ParentFlow({
             <div className="space-y-3">
               {villeUnique.sessions.map((session) => {
                 const complet = session.placesRestantes <= 0;
+                const presqueComplet = !complet && session.placesRestantes <= 3;
                 return (
                   <div key={session.id} className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-xl border" style={{ borderColor: "#DCC79C", background: "#FBF3E3" }}>
                     <div>
@@ -1616,6 +1638,11 @@ function ParentFlow({
                         <span className="flex items-center gap-1"><Calendar size={14} /> {session.date}</span>
                         <span className="flex items-center gap-1"><Clock size={14} /> {session.heure}</span>
                         <span className="flex items-center gap-1" style={{ color: complet ? "#B5744A" : "#8A7A56" }}><Users size={14} /> {complet ? "Complet" : `${session.placesRestantes} place(s)`}</span>
+                        {presqueComplet && (
+                          <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full" style={{ background: "#F3D089", color: "#8A5A26" }}>
+                            Plus que {session.placesRestantes} place{session.placesRestantes > 1 ? "s" : ""} !
+                          </span>
+                        )}
                       </div>
                       {session.note && <p className="text-xs italic mt-1" style={{ color: "#8A7A56" }}>{session.note}</p>}
                     </div>
@@ -1657,6 +1684,7 @@ function ParentFlow({
                 <div className="space-y-3">
                   {selectedVille.sessions.map((session) => {
                     const complet = session.placesRestantes <= 0;
+                    const presqueComplet = !complet && session.placesRestantes <= 3;
                     return (
                       <div key={session.id} className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-xl border" style={{ borderColor: "#DCC79C", background: "#FBF3E3" }}>
                         <div>
@@ -1664,6 +1692,11 @@ function ParentFlow({
                             <span className="flex items-center gap-1"><Calendar size={14} /> {session.date}</span>
                             <span className="flex items-center gap-1"><Clock size={14} /> {session.heure}</span>
                             <span className="flex items-center gap-1" style={{ color: complet ? "#B5744A" : "#8A7A56" }}><Users size={14} /> {complet ? "Complet" : `${session.placesRestantes} place(s)`}</span>
+                            {presqueComplet && (
+                              <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full" style={{ background: "#F3D089", color: "#8A5A26" }}>
+                                Plus que {session.placesRestantes} place{session.placesRestantes > 1 ? "s" : ""} !
+                              </span>
+                            )}
                           </div>
                           {session.note && <p className="text-xs italic mt-1" style={{ color: "#8A7A56" }}>{session.note}</p>}
                         </div>
