@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   MapPin, Sparkles, Settings, X, Plus, Trash2, ArrowLeft, Check, Users, Calendar,
   Clock, Coins, Loader2, Leaf, Mail, Phone, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Download,
-  CalendarPlus, Star, ScrollText, Lock, Upload, ShoppingBag, Minus, Tag, Compass, BookOpen, Gift
+  CalendarPlus, Star, ScrollText, Lock, Upload, ShoppingBag, Minus, Tag, Compass, BookOpen, Gift, Heart, Zap
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 
@@ -88,6 +88,61 @@ const FONT_STYLE = `
   background-image: radial-gradient(rgba(90,70,45,0.05) 1px, transparent 1px);
   background-size: 14px 14px;
 }
+@keyframes lmc-badge-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(217,120,47,0.5); transform: scale(1); }
+  50% { box-shadow: 0 0 0 6px rgba(217,120,47,0); transform: scale(1.04); }
+}
+.lmc-badge-urgence {
+  animation: lmc-badge-pulse 2.2s ease-in-out infinite;
+}
+.lmc-card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.lmc-card-hover:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(43,68,51,0.12);
+  border-color: #E8B94A;
+}
+@keyframes lmc-pop-in {
+  0% { transform: scale(0.3); opacity: 0; }
+  55% { transform: scale(1.2); opacity: 1; }
+  75% { transform: scale(0.95); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.lmc-pop-in {
+  animation: lmc-pop-in 0.75s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes lmc-halo {
+  0% { transform: scale(0.4); opacity: 0.6; }
+  100% { transform: scale(3.2); opacity: 0; }
+}
+.lmc-halo {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(232,185,74,0.6) 0%, rgba(232,185,74,0) 70%);
+  animation: lmc-halo 1.3s ease-out both;
+}
+@keyframes lmc-burst-0 { 0% { transform: translate(-50%,-50%) translate(0,0) scale(1); opacity: 1; } 100% { transform: translate(-50%,-50%) translate(70px,-10px) scale(0.2); opacity: 0; } }
+@keyframes lmc-burst-1 { 0% { transform: translate(-50%,-50%) translate(0,0) scale(1); opacity: 1; } 100% { transform: translate(-50%,-50%) translate(-65px,-20px) scale(0.2); opacity: 0; } }
+@keyframes lmc-burst-2 { 0% { transform: translate(-50%,-50%) translate(0,0) scale(1); opacity: 1; } 100% { transform: translate(-50%,-50%) translate(45px,60px) scale(0.2); opacity: 0; } }
+@keyframes lmc-burst-3 { 0% { transform: translate(-50%,-50%) translate(0,0) scale(1); opacity: 1; } 100% { transform: translate(-50%,-50%) translate(-50px,55px) scale(0.2); opacity: 0; } }
+@keyframes lmc-burst-4 { 0% { transform: translate(-50%,-50%) translate(0,0) scale(1); opacity: 1; } 100% { transform: translate(-50%,-50%) translate(10px,-75px) scale(0.2); opacity: 0; } }
+@keyframes lmc-burst-5 { 0% { transform: translate(-50%,-50%) translate(0,0) scale(1); opacity: 1; } 100% { transform: translate(-50%,-50%) translate(-15px,75px) scale(0.2); opacity: 0; } }
+@keyframes lmc-burst-6 { 0% { transform: translate(-50%,-50%) translate(0,0) scale(1); opacity: 1; } 100% { transform: translate(-50%,-50%) translate(80px,35px) scale(0.2); opacity: 0; } }
+@keyframes lmc-burst-7 { 0% { transform: translate(-50%,-50%) translate(0,0) scale(1); opacity: 1; } 100% { transform: translate(-50%,-50%) translate(-80px,20px) scale(0.2); opacity: 0; } }
+@keyframes lmc-burst-8 { 0% { transform: translate(-50%,-50%) translate(0,0) scale(1); opacity: 1; } 100% { transform: translate(-50%,-50%) translate(30px,-55px) scale(0.2); opacity: 0; } }
+@keyframes lmc-burst-9 { 0% { transform: translate(-50%,-50%) translate(0,0) scale(1); opacity: 1; } 100% { transform: translate(-50%,-50%) translate(-35px,-60px) scale(0.2); opacity: 0; } }
+.lmc-burst-particle-0 { position: absolute; top: 50%; left: 50%; animation: lmc-burst-0 1.1s ease-out 0s both; }
+.lmc-burst-particle-1 { position: absolute; top: 50%; left: 50%; animation: lmc-burst-1 1.1s ease-out 0.03s both; }
+.lmc-burst-particle-2 { position: absolute; top: 50%; left: 50%; animation: lmc-burst-2 1.1s ease-out 0.06s both; }
+.lmc-burst-particle-3 { position: absolute; top: 50%; left: 50%; animation: lmc-burst-3 1.1s ease-out 0.02s both; }
+.lmc-burst-particle-4 { position: absolute; top: 50%; left: 50%; animation: lmc-burst-4 1.1s ease-out 0.05s both; }
+.lmc-burst-particle-5 { position: absolute; top: 50%; left: 50%; animation: lmc-burst-5 1.1s ease-out 0.04s both; }
+.lmc-burst-particle-6 { position: absolute; top: 50%; left: 50%; animation: lmc-burst-6 1.1s ease-out 0.08s both; }
+.lmc-burst-particle-7 { position: absolute; top: 50%; left: 50%; animation: lmc-burst-7 1.1s ease-out 0.01s both; }
+.lmc-burst-particle-8 { position: absolute; top: 50%; left: 50%; animation: lmc-burst-8 1.1s ease-out 0.07s both; }
+.lmc-burst-particle-9 { position: absolute; top: 50%; left: 50%; animation: lmc-burst-9 1.1s ease-out 0.09s both; }
 .lmc-input{width:100%;border:1px solid #DCC79C;border-radius:14px;padding:10px 14px;background:#FFFDF7;color:#2B4433;outline:none;font-family:'Quicksand',sans-serif;font-weight:500;}
 .lmc-input:focus{border-color:#E8B94A;box-shadow:0 0 0 3px rgba(232,185,74,0.25);}
 `;
@@ -163,6 +218,24 @@ const DEFAULT_CONFIG = {
 function Firefly({ top, left, delay, size = 8 }) {
   return (
     <span className="lmc-firefly" style={{ top, left, width: size, height: size, animationDelay: delay }} />
+  );
+}
+
+function EclatCelebration() {
+  return (
+    <div className="relative w-20 h-20 mx-auto mb-6">
+      <div className="lmc-halo" />
+      {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => (
+        <span
+          key={i}
+          className={`lmc-burst-particle-${i} rounded-full`}
+          style={{ width: 6, height: 6, background: "radial-gradient(circle, #FCE8A8 0%, #E8B94A 55%, rgba(232,185,74,0) 75%)" }}
+        />
+      ))}
+      <div className="lmc-pop-in w-20 h-20 rounded-full text-[#F7ECD8] flex items-center justify-center relative" style={{ background: "#2B4433" }}>
+        <Check size={32} />
+      </div>
+    </div>
   );
 }
 
@@ -1287,9 +1360,7 @@ function LegalPage({ texte, onBack }) {
 function MerciPaiement({ onRetour }) {
   return (
     <div className="text-center py-10">
-      <div className="w-16 h-16 rounded-full text-[#F7ECD8] flex items-center justify-center mx-auto mb-6" style={{ background: "#2B4433" }}>
-        <Check size={28} />
-      </div>
+      <EclatCelebration />
       <h2 className="lmc-display text-4xl mb-2" style={{ color: "#2B4433" }}>Merci !</h2>
       <p className="text-[#5C4A3A] mb-6 max-w-md mx-auto font-medium">
         Votre paiement a bien été pris en compte. On a hâte de vous accueillir !
@@ -1307,9 +1378,7 @@ function MerciPaiement({ onRetour }) {
 function MerciCommande({ onRetour, articlesRestants = 0 }) {
   return (
     <div className="text-center py-10">
-      <div className="w-16 h-16 rounded-full text-[#F7ECD8] flex items-center justify-center mx-auto mb-6" style={{ background: "#2B4433" }}>
-        <Check size={28} />
-      </div>
+      <EclatCelebration />
       <h2 className="lmc-display text-4xl mb-2" style={{ color: "#2B4433" }}>Merci pour votre commande !</h2>
       <p className="text-[#5C4A3A] mb-6 max-w-md mx-auto font-medium">
         Votre paiement a bien été pris en compte, votre commande est enregistrée et sera préparée avec soin.
@@ -1632,15 +1701,15 @@ function ParentFlow({
                 const complet = session.placesRestantes <= 0;
                 const presqueComplet = !complet && session.placesRestantes <= 3;
                 return (
-                  <div key={session.id} className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-xl border" style={{ borderColor: "#DCC79C", background: "#FBF3E3" }}>
+                  <div key={session.id} className="lmc-card-hover flex flex-wrap items-center justify-between gap-3 p-4 rounded-xl border" style={{ borderColor: "#DCC79C", background: "#FBF3E3" }}>
                     <div>
                       <div className="flex flex-wrap items-center gap-4 text-sm font-medium" style={{ color: "#2B4433" }}>
                         <span className="flex items-center gap-1"><Calendar size={14} /> {session.date}</span>
                         <span className="flex items-center gap-1"><Clock size={14} /> {session.heure}</span>
                         <span className="flex items-center gap-1" style={{ color: complet ? "#B5744A" : "#8A7A56" }}><Users size={14} /> {complet ? "Complet" : `${session.placesRestantes} place(s)`}</span>
                         {presqueComplet && (
-                          <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full" style={{ background: "#F3D089", color: "#8A5A26" }}>
-                            Plus que {session.placesRestantes} place{session.placesRestantes > 1 ? "s" : ""} !
+                          <span className="lmc-badge-urgence flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full" style={{ background: "#D9782F", color: "#F7ECD8" }}>
+                            <Zap size={11} fill="#F7ECD8" /> Plus que {session.placesRestantes} place{session.placesRestantes > 1 ? "s" : ""} !
                           </span>
                         )}
                       </div>
@@ -1686,15 +1755,15 @@ function ParentFlow({
                     const complet = session.placesRestantes <= 0;
                     const presqueComplet = !complet && session.placesRestantes <= 3;
                     return (
-                      <div key={session.id} className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-xl border" style={{ borderColor: "#DCC79C", background: "#FBF3E3" }}>
+                      <div key={session.id} className="lmc-card-hover flex flex-wrap items-center justify-between gap-3 p-4 rounded-xl border" style={{ borderColor: "#DCC79C", background: "#FBF3E3" }}>
                         <div>
                           <div className="flex flex-wrap items-center gap-4 text-sm font-medium" style={{ color: "#2B4433" }}>
                             <span className="flex items-center gap-1"><Calendar size={14} /> {session.date}</span>
                             <span className="flex items-center gap-1"><Clock size={14} /> {session.heure}</span>
                             <span className="flex items-center gap-1" style={{ color: complet ? "#B5744A" : "#8A7A56" }}><Users size={14} /> {complet ? "Complet" : `${session.placesRestantes} place(s)`}</span>
                             {presqueComplet && (
-                              <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full" style={{ background: "#F3D089", color: "#8A5A26" }}>
-                                Plus que {session.placesRestantes} place{session.placesRestantes > 1 ? "s" : ""} !
+                              <span className="lmc-badge-urgence flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full" style={{ background: "#D9782F", color: "#F7ECD8" }}>
+                                <Zap size={11} fill="#F7ECD8" /> Plus que {session.placesRestantes} place{session.placesRestantes > 1 ? "s" : ""} !
                               </span>
                             )}
                           </div>
@@ -1798,7 +1867,7 @@ function BoutiquePage({ produits, onOpenProduit, onAjouterPanier }) {
             {visibles.map((p) => {
               const imgs = getImages(p);
               return (
-                <div key={p.id} className="rounded-2xl border overflow-hidden relative" style={{ borderColor: "#DCC79C", background: "#FBF3E3" }}>
+                <div key={p.id} className="lmc-card-hover rounded-2xl border overflow-hidden relative" style={{ borderColor: "#DCC79C", background: "#FBF3E3" }}>
                   <LeafCorner className="absolute top-2 right-2 opacity-70 z-10" />
                   <div className="h-44 w-full overflow-hidden relative" style={{ background: "#F3E3CB" }}>
                     {imgs[0] ? (
@@ -1811,6 +1880,11 @@ function BoutiquePage({ produits, onOpenProduit, onAjouterPanier }) {
                     {p.badge && (
                       <span className="absolute top-3 left-3 text-[10px] font-bold px-2.5 py-1 rounded-full" style={{ background: "rgba(43,68,51,0.85)", color: "#F7ECD8" }}>
                         {p.badge}
+                      </span>
+                    )}
+                    {p.coupDeCoeur && (
+                      <span className="absolute top-3 right-3 flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full" style={{ background: "#C46B7A", color: "#FBF3E3" }}>
+                        <Heart size={10} fill="#FBF3E3" /> Coup de cœur
                       </span>
                     )}
                     {imgs.length > 1 && (
@@ -1915,6 +1989,11 @@ function ProduitModal({ produit, onClose, onAjouter }) {
           {produit.categorie && (
             <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide mb-1" style={{ color: "#8A7A56" }}>
               <Tag size={10} /> {produit.categorie}
+            </span>
+          )}
+          {produit.coupDeCoeur && (
+            <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide mb-2" style={{ color: "#C46B7A" }}>
+              <Heart size={11} fill="#C46B7A" /> Coup de cœur
             </span>
           )}
           <h2 className="lmc-display text-3xl mb-2" style={{ color: "#2B4433" }}>{produit.titre}</h2>
@@ -2274,6 +2353,10 @@ function ProduitForm({ produit, onCancel, onSave }) {
           <Field label="Stock disponible (laisse vide si illimité)">
             <input type="number" min="0" className="lmc-input" value={form.stock ?? ""} onChange={(e) => setForm((f) => ({ ...f, stock: e.target.value === "" ? "" : parseInt(e.target.value, 10) || 0 }))} placeholder="Ex. 5" />
           </Field>
+          <label className="flex items-center gap-2 text-sm font-semibold cursor-pointer" style={{ color: "#5C4A3A" }}>
+            <input type="checkbox" checked={!!form.coupDeCoeur} onChange={(e) => setForm((f) => ({ ...f, coupDeCoeur: e.target.checked }))} />
+            <Heart size={14} style={{ color: "#C46B7A" }} /> Mettre en avant comme « Coup de cœur »
+          </label>
           <Field label="Résumé court (carte produit)"><input className="lmc-input" value={form.resume} onChange={set("resume")} /></Field>
           <Field label="Description complète"><textarea className="lmc-input" rows={3} value={form.description} onChange={set("description")} /></Field>
           <Field label="Photos (plusieurs possibles — le client pourra les faire défiler)">
