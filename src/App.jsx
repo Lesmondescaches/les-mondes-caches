@@ -233,17 +233,23 @@ function Firefly({ top, left, delay, size = 8 }) {
 }
 
 function EclatCelebration() {
+  const [lance, setLance] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setLance(true), 300);
+    return () => clearTimeout(t);
+  }, []);
   return (
     <div className="relative w-20 h-20 mx-auto mb-6">
-      <div className="lmc-halo" />
-      {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => (
-        <span
-          key={i}
-          className={`lmc-burst-particle-${i} rounded-full`}
-          style={{ width: 6, height: 6, background: "radial-gradient(circle, #FCE8A8 0%, #E8B94A 55%, rgba(232,185,74,0) 75%)" }}
-        />
-      ))}
-      <div className="lmc-pop-in w-20 h-20 rounded-full text-[#F7ECD8] flex items-center justify-center relative" style={{ background: "#2B4433" }}>
+      {lance && <div className="lmc-halo" />}
+      {lance &&
+        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => (
+          <span
+            key={i}
+            className={`lmc-burst-particle-${i} rounded-full`}
+            style={{ width: 6, height: 6, background: "radial-gradient(circle, #FCE8A8 0%, #E8B94A 55%, rgba(232,185,74,0) 75%)" }}
+          />
+        ))}
+      <div className={lance ? "lmc-pop-in w-20 h-20 rounded-full text-[#F7ECD8] flex items-center justify-center relative" : "w-20 h-20 rounded-full text-[#F7ECD8] flex items-center justify-center relative opacity-0"} style={{ background: "#2B4433" }}>
         <Check size={32} />
       </div>
     </div>
@@ -1241,14 +1247,12 @@ onSupprimerAvis={supprimerAvis}
 />
         ) : view === "legal" ? (
           <LegalPage texte={config.mentionsLegales} onBack={() => setView("parent")} />
-        ) : view === "boutique" ? (
-          commandeConfirmee ? (
-            <MerciCommande onRetour={() => setCommandeConfirmee(false)} articlesRestants={panier.length} />
-          ) : (
-            <BoutiquePage produits={produits} onOpenProduit={setProduitDetail} onAjouterPanier={ajouterAuPanier} />
-          )
+        ) : commandeConfirmee ? (
+          <MerciCommande onRetour={() => setCommandeConfirmee(false)} articlesRestants={panier.length} />
         ) : paiementConfirme ? (
           <MerciPaiement onRetour={() => setPaiementConfirme(false)} />
+        ) : view === "boutique" ? (
+          <BoutiquePage produits={produits} onOpenProduit={setProduitDetail} onAjouterPanier={ajouterAuPanier} />
         ) : (
           <ParentFlow
             config={config} villes={villes} step={step} selectedVille={selectedVille} selectedSession={selectedSession}
@@ -2438,10 +2442,13 @@ function exportCSV(reservations) {
 }
 
 function exportCommandesCSV(commandes) {
-  const header = "Nom,Email,Telephone,Adresse,Articles,Total\n";
+  const header = "Date,Heure,Nom,Email,Telephone,Adresse,Articles,Total\n";
   const rows = commandes
-    .map((c) =>
-      [
+    .map((c) => {
+      const d = c.cree_le ? new Date(c.cree_le) : null;
+      return [
+        d ? d.toLocaleDateString("fr-FR") : "",
+        d ? d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : "",
         c.nom,
         c.email,
         c.tel || "",
@@ -2450,8 +2457,8 @@ function exportCommandesCSV(commandes) {
         formatPrix(c.total),
       ]
         .map((v) => `"${String(v).replace(/"/g, '""')}"`)
-        .join(",")
-    )
+        .join(",");
+    })
     .join("\n");
   const blob = new Blob([header + rows], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
@@ -3094,6 +3101,11 @@ function AdminPanel({
             {commandes.filter((c) => (c.supprime || false) === voirCorbeilleCommandes).map((c) => (
               <div key={c.id} className="text-sm rounded-lg px-3 py-2 flex flex-wrap gap-x-4 gap-y-1 border" style={{ borderColor: "#DCC79C" }}>
                 <span className="font-semibold" style={{ color: "#2B4433" }}>{c.nom}</span>
+                {c.cree_le && (
+                  <span className="font-medium" style={{ color: "#8A7A56" }}>
+                    {new Date(c.cree_le).toLocaleDateString("fr-FR")} à {new Date(c.cree_le).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                )}
                 <span className="font-medium" style={{ color: "#5C4A3A" }}>{(c.articles || []).map((a) => `${a.titre} x${a.qte}`).join(", ")}</span>
                 <span className="font-medium" style={{ color: "#5C4A3A" }}>
                   {formatPrix(c.total)}{c.frais_port ? ` (dont ${formatPrix(c.frais_port)} livraison)` : ""}
