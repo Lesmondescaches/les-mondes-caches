@@ -235,7 +235,7 @@ function Firefly({ top, left, delay, size = 8 }) {
 function EclatCelebration() {
   const [lance, setLance] = useState(false);
   useEffect(() => {
-    const t = setTimeout(() => setLance(true), 300);
+    const t = setTimeout(() => setLance(true), 200);
     return () => clearTimeout(t);
   }, []);
   return (
@@ -249,6 +249,13 @@ function EclatCelebration() {
             style={{ width: 6, height: 6, background: "radial-gradient(circle, #FCE8A8 0%, #E8B94A 55%, rgba(232,185,74,0) 75%)" }}
           />
         ))}
+      {/* Lucioles qui continuent de tourner en boucle plusieurs secondes, pour ne rien manquer même après un vrai temps de chargement */}
+      <Firefly top="-15%" left="-25%" delay="0s" size={6} />
+      <Firefly top="-20%" left="90%" delay="0.6s" size={5} />
+      <Firefly top="85%" left="-20%" delay="1.2s" size={5} />
+      <Firefly top="90%" left="95%" delay="1.8s" size={6} />
+      <Firefly top="30%" left="105%" delay="0.9s" size={5} />
+      <Firefly top="25%" left="-30%" delay="1.5s" size={5} />
       <div className={lance ? "lmc-pop-in w-20 h-20 rounded-full text-[#F7ECD8] flex items-center justify-center relative" : "w-20 h-20 rounded-full text-[#F7ECD8] flex items-center justify-center relative opacity-0"} style={{ background: "#2B4433" }}>
         <Check size={32} />
       </div>
